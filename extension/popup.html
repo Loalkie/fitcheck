@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FitCheck</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="logo">F</span>
+        <div>
+          <h1>FitCheck</h1>
+          <p>Job search assistant</p>
+        </div>
+      </header>
+
+      <section id="job-preview">
+        <p class="label">Current page</p>
+        <div id="job" class="muted">Open a job posting to parse it.</div>
+      </section>
+
+      <section class="actions">
+        <button id="parse" type="button">Parse this job</button>
+        <button id="import" type="button">Import to FitCheck</button>
+        <button id="autofill" type="button">Autofill application</button>
+        <button id="open-app" type="button">Open FitCheck</button>
+      </section>
+
+      <section id="profile" class="muted">
+        No resume profile stored yet. Fill your details below for autofill.
+      </section>
+
+      <section id="editor">
+        <label>First name <input id="firstName" /></label>
+        <label>Last name <input id="lastName" /></label>
+        <label>Email <input id="email" type="email" /></label>
+        <label>Phone <input id="phone" /></label>
+        <label>City <input id="city" /></label>
+        <label>LinkedIn URL <input id="linkedin" /></label>
+        <label>Resume text <textarea id="resumeText" rows="4"></textarea></label>
+        <label>Most recent role <input id="expRole" /></label>
+        <label>Company <input id="expCompany" /></label>
+        <label>Start date <input id="expStart" placeholder="2023-06" /></label>
+        <label>End date <input id="expEnd" placeholder="Present" /></label>
+        <label>Experience description <textarea id="expDescription" rows="3"></textarea></label>
+        <label>School <input id="eduSchool" /></label>
+        <label>Degree <input id="eduDegree" /></label>
+        <label>Field of study <input id="eduField" /></label>
+        <label>Education start <input id="eduStart" placeholder="2019-09" /></label>
+        <label>Education end <input id="eduEnd" placeholder="2023-06" /></label>
+        <label>FitCheck token <input id="token" placeholder="Paste from Profile → Connect Chrome extension" /></label>
+        <button id="save-profile" type="button">Save autofill profile</button>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

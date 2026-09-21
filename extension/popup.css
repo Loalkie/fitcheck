@@ -1,0 +1,129 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 340px;
+  margin: 0;
+  background: #f6f7fb;
+  color: #0f172a;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+main {
+  padding: 14px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+}
+
+header p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+section {
+  margin-top: 12px;
+}
+
+.label {
+  margin: 0 0 4px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#job {
+  min-height: 46px;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #2563eb;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #1d4ed8;
+}
+
+#open-app {
+  background: #0f172a;
+}
+
+#editor {
+  display: grid;
+  gap: 7px;
+}
+
+#editor label {
+  display: grid;
+  gap: 3px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+#save-profile {
+  margin-top: 3px;
+  background: #0f172a;
+}
