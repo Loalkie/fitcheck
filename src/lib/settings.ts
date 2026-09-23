@@ -5,10 +5,15 @@ function isAiDisabled(mode: string): boolean {
 }
 
 export function getSetting(key: string): string {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as
-    | { value: string }
-    | undefined;
-  return row?.value ?? "";
+  try {
+    const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as
+      | { value: string }
+      | undefined;
+    return row?.value ?? "";
+  } catch {
+    // No database on this host: fall back to environment variables only.
+    return "";
+  }
 }
 
 export function setSetting(key: string, value: string): void {

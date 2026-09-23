@@ -6,11 +6,15 @@ import {
   isValidEmail,
   verifyPassword,
 } from "@/lib/auth";
+import { durableStorageError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const storageIssue = durableStorageError();
+    if (storageIssue) return NextResponse.json({ error: storageIssue }, { status: 503 });
+
     const body = (await req.json().catch(() => ({}))) as { email?: unknown; password?: unknown };
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";

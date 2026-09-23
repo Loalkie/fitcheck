@@ -32,7 +32,11 @@ export function createSession(userId: string): { token: string; maxAge: number }
 }
 
 export function deleteSession(token: string): void {
-  getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  try {
+    getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  } catch {
+    // Signing out must never fail, even without storage.
+  }
 }
 
 const EXTENSION_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
@@ -48,13 +52,18 @@ export function createExtensionToken(userId: string): string {
 
 export function getUserByExtensionToken(token: string | undefined): UserRow | null {
   if (!token) return null;
-  const row = getDb()
-    .prepare(
-      `SELECT u.id, u.email, t.expires_at AS expires_at
-       FROM extension_tokens t JOIN users u ON u.id = t.user_id
-       WHERE t.token = ?`,
-    )
-    .get(token) as (UserRow & { expires_at: number }) | undefined;
+  let row: (UserRow & { expires_at: number }) | undefined;
+  try {
+    row = getDb()
+      .prepare(
+        `SELECT u.id, u.email, t.expires_at AS expires_at
+         FROM extension_tokens t JOIN users u ON u.id = t.user_id
+         WHERE t.token = ?`,
+      )
+      .get(token) as (UserRow & { expires_at: number }) | undefined;
+  } catch {
+    return null;
+  }
   if (!row || row.expires_at < Date.now()) return null;
   return { id: row.id, email: row.email };
 }
@@ -74,13 +83,18 @@ export function createUser(email: string, passwordHash: string): UserRow {
 
 export function getSessionUser(token: string | undefined): UserRow | null {
   if (!token) return null;
-  const row = getDb()
-    .prepare(
-      `SELECT u.id, u.email, s.expires_at AS expires_at
-       FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token = ?`,
-    )
-    .get(token) as (UserRow & { expires_at: number }) | undefined;
+  let row: (UserRow & { expires_at: number }) | undefined;
+  try {
+    row = getDb()
+      .prepare(
+        `SELECT u.id, u.email, s.expires_at AS expires_at
+         FROM sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.token = ?`,
+      )
+      .get(token) as (UserRow & { expires_at: number }) | undefined;
+  } catch {
+    return null;
+  }
   if (!row || row.expires_at < Date.now()) return null;
   return { id: row.id, email: row.email };
 }
