@@ -21,6 +21,8 @@ const DATA_DIR_NAME = "fitcheck-data";
 let cached: Db | null = null;
 let resolvedDir: string | null = null;
 let backend: StorageBackend = "none";
+let postgresSource: string | null = null;
+let sqliteSource: "FIT_DATA_DIR" | ".data" | "tmpdir" | null = null;
 
 export class StorageUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -99,17 +101,20 @@ function resolveDataDir(): string {
   if (resolvedDir) return resolvedDir;
 
   const candidates = [
-    process.env.FIT_DATA_DIR,
-    path.join(process.cwd(), ".data"),
-    path.join(os.tmpdir(), DATA_DIR_NAME),
-  ].filter((dir): dir is string => Boolean(dir && dir.trim()));
+    { source: "FIT_DATA_DIR" as const, dir: process.env.FIT_DATA_DIR ?? "" },
+    { source: ".data" as const, dir: path.join(process.cwd(), ".data") },
+    { source: "tmpdir" as const, dir: path.join(os.tmpdir(), DATA_DIR_NAME) },
+  ];
 
   let lastError: unknown = null;
-  for (const dir of candidates) {
+  for (const candidate of candidates) {
+    const dir = candidate.dir.trim();
+    if (!dir) continue;
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.accessSync(dir, fs.constants.W_OK);
       resolvedDir = dir;
+      sqliteSource = candidate.source;
       return dir;
     } catch (err) {
       lastError = err;
@@ -121,17 +126,42 @@ function resolveDataDir(): string {
   });
 }
 
-/** Connection string of a hosted Postgres, when the host provides one. */
+/** Names the common integrations use, in order of preference. */
+const PREFERRED_POSTGRES_VARS = [
+  "DATABASE_URL",
+  "POSTGRES_URL",
+  "POSTGRES_PRISMA_URL",
+  "POSTGRES_URL_NON_POOLING",
+];
+
+function asPostgresUrl(value: string | undefined): string | null {
+  const url = value?.trim();
+  if (!url || !/^postgres(ql)?:\/\//i.test(url)) return null;
+  return url;
+}
+
+/**
+ * Connection string of a hosted Postgres, when the host provides one. Besides
+ * the well-known names, any `*URL`/`*_DATABASE_URL` variable holding a
+ * `postgres://` value is accepted, so whichever name a hosting integration
+ * picks still works.
+ */
 function postgresUrl(): string | null {
-  const candidates = [
-    process.env.DATABASE_URL,
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_PRISMA_URL,
-    process.env.POSTGRES_URL_NON_POOLING,
-  ];
-  for (const candidate of candidates) {
-    const url = candidate?.trim();
-    if (url && /^postgres(ql)?:\/\//i.test(url)) return url;
+  for (const name of PREFERRED_POSTGRES_VARS) {
+    const url = asPostgresUrl(process.env[name]);
+    if (url) {
+      postgresSource = name;
+      return url;
+    }
+  }
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!/url/i.test(name) || !/(postgres|database|neon|supabase|pg)/i.test(name)) continue;
+    const url = asPostgresUrl(value);
+    if (url) {
+      console.log(`[db] using Postgres from ${name}`);
+      postgresSource = name;
+      return url;
+    }
   }
   return null;
 }
@@ -258,6 +288,14 @@ export function getDb(): Db {
 export function storageBackend(): StorageBackend {
   getDb();
   return backend;
+}
+
+/** Where the backend actually came from: an env var name, or a directory label. */
+export function storageSource(): string | null {
+  getDb();
+  if (backend === "postgres") return postgresSource;
+  if (backend === "sqlite") return sqliteSource;
+  return null;
 }
 
 /** Where the data lives, from the point of view of durability. */

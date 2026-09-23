@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb, storageBackend, storageMode } from "@/lib/db";
+import { getDb, storageBackend, storageMode, storageSource } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -19,6 +19,7 @@ export async function GET() {
     db,
     storage: storageMode(),
     backend: storageBackend(),
+    source: storageSource(),
     time: new Date().toISOString(),
     version: "0.1.0",
   });
