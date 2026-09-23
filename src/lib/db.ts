@@ -140,11 +140,14 @@ function asPostgresUrl(value: string | undefined): string | null {
   return url;
 }
 
+/** Direct/unpooled endpoints are a last resort: serverless functions exhaust them. */
+const UNPOOLED_VAR = /(unpooled|non[_-]?pooling|no[_-]?ssl|direct)/i;
+
 /**
- * Connection string of a hosted Postgres, when the host provides one. Besides
- * the well-known names, any `*URL`/`*_DATABASE_URL` variable holding a
- * `postgres://` value is accepted, so whichever name a hosting integration
- * picks still works.
+ * Connection string of a hosted Postgres, when the host provides one. Beyond
+ * the well-known names, any variable holding a `postgres://` value counts — a
+ * marketplace integration is free to call it `STORAGE_URL`, `NEON_...`, or
+ * anything else, and the value is the only signal that stays reliable.
  */
 function postgresUrl(): string | null {
   for (const name of PREFERRED_POSTGRES_VARS) {
@@ -154,14 +157,23 @@ function postgresUrl(): string | null {
       return url;
     }
   }
-  for (const [name, value] of Object.entries(process.env)) {
-    if (!/url/i.test(name) || !/(postgres|database|neon|supabase|pg)/i.test(name)) continue;
-    const url = asPostgresUrl(value);
-    if (url) {
-      console.log(`[db] using Postgres from ${name}`);
-      postgresSource = name;
-      return url;
-    }
+  const candidates = Object.entries(process.env)
+    .flatMap(([name, value]) => {
+      const url = asPostgresUrl(value);
+      return url ? [{ name, url }] : [];
+    })
+    .sort(
+      (a, b) =>
+        Number(UNPOOLED_VAR.test(a.name)) - Number(UNPOOLED_VAR.test(b.name)) ||
+        Number(!/url/i.test(a.name)) - Number(!/url/i.test(b.name)) ||
+        a.name.localeCompare(b.name),
+    );
+
+  const fallback = candidates[0];
+  if (fallback) {
+    console.log(`[db] using Postgres from ${fallback.name}`);
+    postgresSource = fallback.name;
+    return fallback.url;
   }
   return null;
 }
