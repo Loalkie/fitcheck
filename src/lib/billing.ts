@@ -13,16 +13,16 @@ function currentPeriod(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function getPlan(userId: string): Plan {
-  const row = getDb().prepare("SELECT plan FROM user_plans WHERE user_id = ?").get(userId) as
-    | { plan: string }
-    | undefined;
+export async function getPlan(userId: string): Promise<Plan> {
+  const row = await getDb()
+    .prepare("SELECT plan FROM user_plans WHERE user_id = ?")
+    .get<{ plan: string }>(userId);
   if (row?.plan === "pro" || row?.plan === "career") return row.plan;
   return "free";
 }
 
-export function setPlan(userId: string, plan: Plan): void {
-  getDb()
+export async function setPlan(userId: string, plan: Plan): Promise<void> {
+  await getDb()
     .prepare(
       `INSERT INTO user_plans (user_id, plan, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET plan = excluded.plan, updated_at = excluded.updated_at`,
@@ -30,40 +30,40 @@ export function setPlan(userId: string, plan: Plan): void {
     .run(userId, plan, Date.now());
 }
 
-export function getUsage(userId: string, metric: string): number {
-  const row = getDb()
-    .prepare("SELECT count FROM usage WHERE user_id = ? AND metric = ? AND period = ?")
-    .get(userId, metric, currentPeriod()) as { count: number } | undefined;
+export async function getUsage(userId: string, metric: string): Promise<number> {
+  const row = await getDb()
+    .prepare('SELECT "count" FROM "usage" WHERE user_id = ? AND metric = ? AND period = ?')
+    .get<{ count: number }>(userId, metric, currentPeriod());
   return row?.count ?? 0;
 }
 
-export function recordUsage(userId: string, metric: "fit_check" | "ai_resume"): {
+export async function recordUsage(userId: string, metric: "fit_check" | "ai_resume"): Promise<{
   allowed: boolean;
   used: number;
   limit: number;
-} {
-  const plan = getPlan(userId);
+}> {
+  const plan = await getPlan(userId);
   const limit = PLAN_LIMITS[plan][metric];
-  const used = getUsage(userId, metric) + 1;
+  const used = (await getUsage(userId, metric)) + 1;
   const allowed = used <= limit;
   if (allowed) {
-    getDb()
+    await getDb()
       .prepare(
-        `INSERT INTO usage (user_id, metric, period, count) VALUES (?, ?, ?, ?)
-         ON CONFLICT(user_id, metric, period) DO UPDATE SET count = count + 1`,
+        `INSERT INTO "usage" (user_id, metric, period, "count") VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, metric, period) DO UPDATE SET "count" = "usage"."count" + 1`,
       )
       .run(userId, metric, currentPeriod(), 1);
   }
   return { allowed, used, limit };
 }
 
-export function getBilling(userId: string) {
-  const plan = getPlan(userId);
+export async function getBilling(userId: string) {
+  const plan = await getPlan(userId);
   return {
     plan,
     usage: {
-      fit_check: getUsage(userId, "fit_check"),
-      ai_resume: getUsage(userId, "ai_resume"),
+      fit_check: await getUsage(userId, "fit_check"),
+      ai_resume: await getUsage(userId, "ai_resume"),
     },
     limits: PLAN_LIMITS[plan],
   };

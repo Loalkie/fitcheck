@@ -4,7 +4,7 @@ A US-market **job-search workspace**. Keep one master resume, score it against e
 chasing, track application status and outcomes, and see which roles actually lead to interviews —
 before you apply.
 
-Built with **Next.js 15 (App Router) + TypeScript + Tailwind CSS + SQLite (better-sqlite3)**.
+Built with **Next.js 15 (App Router) + TypeScript + Tailwind CSS + Postgres/SQLite**.
 
 ## Features
 
@@ -33,36 +33,48 @@ Open http://localhost:3000.
 
 ## Accounts & data
 
-- Workspace data persists to `./.data/app.db` (SQLite, auto-created; git-ignored).
+- Workspace data persists to Postgres when `DATABASE_URL` (or the `POSTGRES_URL` a Vercel/Neon
+  integration injects) is set, otherwise to `./.data/app.db` (SQLite, auto-created; git-ignored).
 - Sessions use an httpOnly cookie (`fit_session`), passwords are hashed with `scrypt` + per-user salt.
 - Until you sign in, the workspace lives in browser localStorage. Signing in syncs it to your account.
 - Resumes/JDs are processed transiently for analysis and are not retained beyond what's in your workspace.
 
+## Storage backends
+
+One is picked at runtime, no configuration beyond the connection string:
+
+- **Postgres** when `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL` or `POSTGRES_URL_NON_POOLING`
+  is set — any Postgres (Vercel Postgres, Neon, Supabase, self-hosted). The schema is created on first query.
+- **SQLite** (`better-sqlite3`) otherwise, at `FIT_DATA_DIR`, `./.data`, or the system temp dir —
+  whichever is writable first.
+
 ## Deploying
 
-Everything except accounts and sync is stateless, so the app runs anywhere Next.js does. Two things are
-worth knowing before you deploy to a serverless host such as Vercel:
+Everything except accounts and sync is stateless, so the app runs anywhere Next.js does. On a
+serverless host such as Vercel the project directory is read-only and the temp dir is wiped whenever
+the instance restarts, so:
 
-- **The SQLite file needs a writable directory.** Vercel mounts the project directory read-only, so
-  `./.data` cannot be created there. The app detects this and falls back to the system temp dir, which
-  keeps uploads, analysis, the job feed and every browser-local feature working.
-- **Accounts and sync are refused on temporary storage.** A database in the temp dir disappears when the
-  host restarts, so `/api/auth/*` answers with an explanation instead of silently losing a synced
-  workspace. To turn sync back on, point `FIT_DATA_DIR` at a durable volume (a mounted disk, or a
-  container host with persistent storage). If you really want the temporary store, set
-  `FIT_ALLOW_EPHEMERAL_STORAGE=1`.
+- Uploads, analysis, the job feed and everything the browser stores keep working with no database at
+  all — the SQLite file simply falls back to the temp dir.
+- **Accounts and workspace sync need Postgres.** Add one from the Vercel dashboard (Storage →
+  Postgres/Neon) and the integration injects `POSTGRES_URL`/`DATABASE_URL`; nothing else to change.
+  Without it, `/api/auth/*` explains that sync is off instead of storing an account somewhere it would
+  disappear from.
+- `FIT_ALLOW_EPHEMERAL_STORAGE=1` allows accounts on temporary storage anyway (data is lost when the
+  host restarts).
 
-Configure AI through project environment variables on the host (`AI_API_KEY`, `AI_API_URL`,
-`AI_MODEL`) — the in-app integration settings live in the database and therefore need durable storage.
-
-`/api/health` reports which mode the app is in:
+`/api/health` reports what the app is using:
 
 ```json
-{ "ok": true, "db": true, "storage": "persistent" }
+{ "ok": true, "db": true, "storage": "persistent", "backend": "postgres" }
 ```
 
 `storage` is `persistent`, `ephemeral` (temp dir) or `unavailable` (no writable directory or the
-SQLite driver is missing). `ok` only tracks whether the server responded.
+driver is missing); `backend` is `postgres`, `sqlite` or `none`. `ok` only tracks whether the server
+responded.
+
+Configure AI through project environment variables on the host (`AI_API_KEY`, `AI_API_URL`,
+`AI_MODEL`) — the in-app integration settings live in the database and therefore need durable storage.
 
 ## Enable AI analysis
 
@@ -113,7 +125,7 @@ src/
     ai.ts                        # OpenAI-compatible client + JSON coercion
     mock.ts                      # Deterministic heuristic fallback
     analyze.ts                   # Orchestration (AI with fallback)
-    db.ts                        # SQLite connection + schema
+    db.ts                        # Storage: Postgres when configured, else SQLite
     auth.ts                      # Password hashing + sessions
     statCard.ts                  # Canvas stat-card renderer
 ```

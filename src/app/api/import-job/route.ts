@@ -26,7 +26,7 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
-  const user = getUserByExtensionToken(bearer) ?? requireUser(req);
+  const user = (await getUserByExtensionToken(bearer)) ?? (await requireUser(req));
   if (!user) return cors(NextResponse.json({ error: "Not authenticated." }, { status: 401 }));
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -58,9 +58,9 @@ export async function POST(req: NextRequest) {
   };
 
   const db = getDb();
-  const row = db.prepare("SELECT data FROM workspaces WHERE user_id = ?").get(user.id) as
-    | { data: string }
-    | undefined;
+  const row = await db
+    .prepare("SELECT data FROM workspaces WHERE user_id = ?")
+    .get<{ data: string }>(user.id);
   let workspace: Record<string, unknown> = { masterResume: null, jobs: [], profile: null, resumeVersions: [] };
   if (row) {
     try {
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     return cors(NextResponse.json({ error: "Workspace is too large to sync." }, { status: 413 }));
   }
 
-  db.prepare(
+  await db.prepare(
     `INSERT INTO workspaces (user_id, data, updated_at) VALUES (?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
   ).run(user.id, json, Date.now());

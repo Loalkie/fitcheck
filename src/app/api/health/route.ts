@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getDb, storageMode } from "@/lib/db";
+import { getDb, storageBackend, storageMode } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   let db = true;
   try {
-    getDb().prepare("SELECT 1").get();
+    await getDb().prepare("SELECT 1").get();
   } catch {
     db = false;
   }
@@ -18,6 +18,7 @@ export async function GET() {
     ok: true,
     db,
     storage: storageMode(),
+    backend: storageBackend(),
     time: new Date().toISOString(),
     version: "0.1.0",
   });

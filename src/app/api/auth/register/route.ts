@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
 
     if (!isValidEmail(email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
     if (password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-    if (getUserByEmail(email)) return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
+    if (await getUserByEmail(email)) return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
 
-    const user = createUser(email, hashPassword(password));
-    const session = createSession(user.id);
+    const user = await createUser(email, hashPassword(password));
+    const session = await createSession(user.id);
     const res = NextResponse.json({ user: { email: user.email } });
     res.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,

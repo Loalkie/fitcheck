@@ -279,8 +279,8 @@ interface AdzunaResponse {
 }
 
 async function fetchAdzuna(query: string, remoteOnly: boolean): Promise<LiveJob[]> {
-  const appId = getSetting("ADZUNA_APP_ID") || process.env.ADZUNA_APP_ID;
-  const appKey = getSetting("ADZUNA_APP_KEY") || process.env.ADZUNA_APP_KEY;
+  const appId = (await getSetting("ADZUNA_APP_ID")) || process.env.ADZUNA_APP_ID;
+  const appKey = (await getSetting("ADZUNA_APP_KEY")) || process.env.ADZUNA_APP_KEY;
   if (!appId || !appKey) return [];
 
   const params = new URLSearchParams({
@@ -326,8 +326,8 @@ interface USAJobsResponse {
 }
 
 async function fetchUsaJobs(query: string): Promise<LiveJob[]> {
-  const apiKey = getSetting("USAJOBS_API_KEY") || process.env.USAJOBS_API_KEY;
-  const email = getSetting("USAJOBS_EMAIL") || process.env.USAJOBS_EMAIL;
+  const apiKey = (await getSetting("USAJOBS_API_KEY")) || process.env.USAJOBS_API_KEY;
+  const email = (await getSetting("USAJOBS_EMAIL")) || process.env.USAJOBS_EMAIL;
   if (!apiKey || !email) return [];
 
   const params = new URLSearchParams({ ResultsPerPage: "50" });

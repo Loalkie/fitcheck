@@ -6,7 +6,7 @@ import type { Plan } from "@/lib/billing";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as { plan?: unknown; period?: unknown };
   const plan = body.plan as Plan | undefined;
@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
   }
 
-  const stripe = getStripe();
-  const priceId = planPriceId(plan, period);
+  const stripe = await getStripe();
+  const priceId = await planPriceId(plan, period);
   if (!stripe || !priceId) {
     return NextResponse.json(
       { error: "Stripe is not configured. Add Stripe keys and price IDs in Settings." },

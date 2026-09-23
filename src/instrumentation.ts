@@ -3,7 +3,7 @@ export async function register() {
 
   try {
     const { loadSettingsIntoEnv } = await import("./lib/settings");
-    loadSettingsIntoEnv();
+    await loadSettingsIntoEnv();
   } catch (err) {
     // This hook runs on the cold start of every serverless function. If it
     // rejects, Next.js surfaces it as an unhandled rejection and the whole

@@ -24,16 +24,18 @@ export function verifyPassword(password: string, stored: string): boolean {
   return candidate.length === expected.length && timingSafeEqual(candidate, expected);
 }
 
-export function createSession(userId: string): { token: string; maxAge: number } {
+export async function createSession(userId: string): Promise<{ token: string; maxAge: number }> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  getDb().prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(token, userId, expiresAt);
+  await getDb()
+    .prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
+    .run(token, userId, expiresAt);
   return { token, maxAge: Math.floor(SESSION_TTL_MS / 1000) };
 }
 
-export function deleteSession(token: string): void {
+export async function deleteSession(token: string): Promise<void> {
   try {
-    getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
+    await getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
   } catch {
     // Signing out must never fail, even without storage.
   }
@@ -41,26 +43,26 @@ export function deleteSession(token: string): void {
 
 const EXTENSION_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
-export function createExtensionToken(userId: string): string {
+export async function createExtensionToken(userId: string): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + EXTENSION_TOKEN_TTL_MS;
-  getDb()
+  await getDb()
     .prepare("INSERT INTO extension_tokens (token, user_id, expires_at) VALUES (?, ?, ?)")
     .run(token, userId, expiresAt);
   return token;
 }
 
-export function getUserByExtensionToken(token: string | undefined): UserRow | null {
+export async function getUserByExtensionToken(token: string | undefined): Promise<UserRow | null> {
   if (!token) return null;
   let row: (UserRow & { expires_at: number }) | undefined;
   try {
-    row = getDb()
+    row = await getDb()
       .prepare(
         `SELECT u.id, u.email, t.expires_at AS expires_at
          FROM extension_tokens t JOIN users u ON u.id = t.user_id
          WHERE t.token = ?`,
       )
-      .get(token) as (UserRow & { expires_at: number }) | undefined;
+      .get<(UserRow & { expires_at: number })>(token);
   } catch {
     return null;
   }
@@ -68,30 +70,32 @@ export function getUserByExtensionToken(token: string | undefined): UserRow | nu
   return { id: row.id, email: row.email };
 }
 
-export function getUserByEmail(email: string): (UserRow & { password_hash: string }) | null {
-  const row = getDb().prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
-  return (row as (UserRow & { password_hash: string }) | undefined) ?? null;
+export async function getUserByEmail(email: string): Promise<(UserRow & { password_hash: string }) | null> {
+  const row = await getDb()
+    .prepare("SELECT id, email, password_hash FROM users WHERE email = ?")
+    .get<UserRow & { password_hash: string }>(email);
+  return row ?? null;
 }
 
-export function createUser(email: string, passwordHash: string): UserRow {
+export async function createUser(email: string, passwordHash: string): Promise<UserRow> {
   const id = randomBytes(16).toString("hex");
-  getDb()
+  await getDb()
     .prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
     .run(id, email, passwordHash, Date.now());
   return { id, email };
 }
 
-export function getSessionUser(token: string | undefined): UserRow | null {
+export async function getSessionUser(token: string | undefined): Promise<UserRow | null> {
   if (!token) return null;
   let row: (UserRow & { expires_at: number }) | undefined;
   try {
-    row = getDb()
+    row = await getDb()
       .prepare(
         `SELECT u.id, u.email, s.expires_at AS expires_at
          FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token = ?`,
       )
-      .get(token) as (UserRow & { expires_at: number }) | undefined;
+      .get<(UserRow & { expires_at: number })>(token);
   } catch {
     return null;
   }
@@ -99,7 +103,7 @@ export function getSessionUser(token: string | undefined): UserRow | null {
   return { id: row.id, email: row.email };
 }
 
-export function requireUser(req: NextRequest): UserRow | null {
+export async function requireUser(req: NextRequest): Promise<UserRow | null> {
   return getSessionUser(req.cookies.get(SESSION_COOKIE)?.value);
 }
 

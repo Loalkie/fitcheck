@@ -4,11 +4,11 @@ function isAiDisabled(mode: string): boolean {
   return mode === "none" || mode === "off" || mode === "heuristic";
 }
 
-export function getSetting(key: string): string {
+export async function getSetting(key: string): Promise<string> {
   try {
-    const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as
-      | { value: string }
-      | undefined;
+    const row = await getDb()
+      .prepare("SELECT value FROM settings WHERE key = ?")
+      .get<{ value: string }>(key);
     return row?.value ?? "";
   } catch {
     // No database on this host: fall back to environment variables only.
@@ -16,9 +16,9 @@ export function getSetting(key: string): string {
   }
 }
 
-export function setSetting(key: string, value: string): void {
+export async function setSetting(key: string, value: string): Promise<void> {
   process.env[key] = value;
-  getDb()
+  await getDb()
     .prepare(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
@@ -31,9 +31,9 @@ export function setSetting(key: string, value: string): void {
   }
 }
 
-export function allSettings(keys: string[]): Record<string, string> {
+export async function allSettings(keys: string[]): Promise<Record<string, string>> {
   const result: Record<string, string> = {};
-  for (const key of keys) result[key] = getSetting(key);
+  for (const key of keys) result[key] = await getSetting(key);
   return result;
 }
 
@@ -54,12 +54,12 @@ const SETTING_KEYS = [
   "STRIPE_WEBHOOK_SECRET",
 ];
 
-export function loadSettingsIntoEnv(): void {
+export async function loadSettingsIntoEnv(): Promise<void> {
   for (const key of SETTING_KEYS) {
-    const value = getSetting(key);
+    const value = await getSetting(key);
     if (value) process.env[key] = value;
   }
-  if (isAiDisabled(getSetting("AI_MODE"))) {
+  if (isAiDisabled(await getSetting("AI_MODE"))) {
     delete process.env.AI_API_KEY;
     delete process.env.AI_API_URL;
     delete process.env.AI_MODEL;

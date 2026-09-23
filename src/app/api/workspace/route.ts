@@ -5,11 +5,11 @@ import { getDb } from "@/lib/db";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  const row = getDb().prepare("SELECT data FROM workspaces WHERE user_id = ?").get(user.id) as
-    | { data: string }
-    | undefined;
+  const row = await getDb()
+    .prepare("SELECT data FROM workspaces WHERE user_id = ?")
+    .get<{ data: string }>(user.id);
   let workspace = null;
   if (row) {
     try {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const origin = req.headers.get("origin");
@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Workspace is too large to sync." }, { status: 413 });
   }
 
-  getDb()
+  await getDb()
     .prepare(
       `INSERT INTO workspaces (user_id, data, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,

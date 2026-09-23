@@ -28,20 +28,20 @@ function mask(value: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const values = allSettings(SETTING_KEYS);
+  const values = await allSettings(SETTING_KEYS);
   const masked = Object.fromEntries(SETTING_KEYS.map((key) => [key, mask(values[key])]));
   return NextResponse.json({ settings: masked, configured: SETTING_KEYS.map((key) => Boolean(values[key])) });
 }
 
 export async function PUT(req: NextRequest) {
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   for (const key of SETTING_KEYS) {
     if (typeof body[key] === "string" && body[key].trim()) {
-      setSetting(key, body[key].trim());
+      await setSetting(key, body[key].trim());
     }
   }
   return NextResponse.json({ ok: true });

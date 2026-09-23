@@ -8,9 +8,9 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const user = requireUser(request);
+    const user = await requireUser(request);
     if (user) {
-      const usage = recordUsage(user.id, "fit_check");
+      const usage = await recordUsage(user.id, "fit_check");
       if (!usage.allowed) {
         return NextResponse.json(
           {

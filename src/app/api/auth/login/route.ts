@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Enter your email and password." }, { status: 400 });
     }
 
-    const user = getUserByEmail(email);
+    const user = await getUserByEmail(email);
     if (!user || !verifyPassword(password, user.password_hash)) {
       return NextResponse.json({ error: "Incorrect email or password." }, { status: 401 });
     }
 
-    const session = createSession(user.id);
+    const session = await createSession(user.id);
     const res = NextResponse.json({ user: { email: user.email } });
     res.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,
