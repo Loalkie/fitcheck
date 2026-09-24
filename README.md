@@ -53,6 +53,24 @@ Open http://localhost:3000.
 - Password reset and email verification need an email provider (`MAIL_API_KEY`, Resend by default); without one
   those endpoints answer 503 instead of silently doing nothing.
 
+## Resume quality
+
+The writer (`src/lib/write.ts`), the tailor (`src/lib/tailor.ts`) and the polish pass (`src/lib/improve.ts`)
+all run on one set of rules in `src/lib/resumePrompt.ts`: facts only, a distinct strong verb per bullet,
+14–28 word bullets, no decoration, and the posting's own vocabulary where the candidate can back it up.
+
+Two things enforce it after the model answers:
+
+- `src/lib/resumeQuality.ts` lints the draft for the tells of machine-written resumes — banned filler
+  ("seamless", "robust", "proven track record"), trailing ", -ing …" clauses that restate a bullet, repeated
+  openers, placeholders like `[City, State]`, markdown in a plain-text resume — and normalises the plain-text
+  shape. A draft that trips two or more of those rules gets one repair pass before it is returned.
+- `src/lib/keywords.ts` splits the posting into terms the candidate's material already supports (use them
+  explicitly) and terms it never mentions (reported in the notes as a gap, never invented).
+
+Write-from-scratch also accepts an existing resume and a posting, which is the biggest single quality jump:
+the model keeps the real employers, dates and numbers and only rewrites the language.
+
 ## Search engines
 
 `/robots.txt` and `/sitemap.xml` are generated from `src/lib/site.ts`. The landing page, `/pricing`, `/privacy`

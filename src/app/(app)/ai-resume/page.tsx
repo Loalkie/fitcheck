@@ -129,6 +129,8 @@ export default function AIResumePage() {
   const [jd, setJd] = useState("");
 
   const [name, setName] = useState("");
+  /** Write mode can rewrite an existing resume instead of relying on notes alone. */
+  const [writeSourceId, setWriteSourceId] = useState("master");
   const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[]>([
     { id: "exp-1", role: "", company: "", start: "", end: "", bullets: "" },
   ]);
@@ -277,16 +279,24 @@ export default function AIResumePage() {
         });
         setResult(tailored);
       } else {
+        const chosenSource = writeSourceId ? sourceOptions.find((s) => s.id === writeSourceId) : undefined;
+        const writeRole = role.trim() || selectedJob?.title || "";
+        const writeCompany = company.trim() || selectedJob?.company || "";
+        // A tracked job still supplies the posting when the fields are blank, so
+        // the summary and keywords are aimed at something real.
+        const writeJd = jd.trim() || selectedJob?.jdText || [writeRole, writeCompany].filter(Boolean).join(" at ");
         const written = await writeResume({
           name,
-          role: targetRole || role,
-          company: targetCompany || company,
+          role: writeRole,
+          company: writeCompany,
           experience: experienceText,
           projects: projectsText,
           education: educationText,
           skills,
           profile: ws.profile,
           style,
+          currentResume: chosenSource?.text,
+          jobDescription: writeJd,
         });
         setResult(written);
       }
@@ -629,11 +639,32 @@ export default function AIResumePage() {
                 <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Target role" className="field" />
                 <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Target company (optional)" className="field" />
               </div>
+              <textarea
+                value={jd}
+                onChange={(e) => setJd(e.target.value)}
+                rows={4}
+                placeholder="Paste the job description (optional — it drives the summary, skills, and keywords)"
+                className="field mt-3 resize-y leading-relaxed"
+              />
 
-              <p className="label mt-5">2 · Basic info</p>
+              <p className="label mt-5">2 · Start from (optional)</p>
+              <select value={writeSourceId} onChange={(e) => setWriteSourceId(e.target.value)} className="field mt-2">
+                <option value="">Notes only — write from scratch</option>
+                {sourceOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                Picking your master resume keeps its real employers, dates, and numbers, and folds the notes below in as
+                extra detail. That is the single biggest quality jump.
+              </p>
+
+              <p className="label mt-5">3 · Basic info</p>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="field mt-2" />
 
-              <p className="label mt-5">3 · Your material</p>
+              <p className="label mt-5">4 · Your material</p>
               <div className="mt-2 space-y-3">
                 <p className="text-xs font-semibold text-slate-700">Experience</p>
                 {experienceEntries.map((entry) => (

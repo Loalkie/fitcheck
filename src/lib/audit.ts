@@ -1,3 +1,5 @@
+import { SKILL_POOL as KEYWORD_POOL, WEAK_VERBS } from "./keywords";
+
 export interface WeakBullet {
   text: string;
   issues: string[];
@@ -15,20 +17,6 @@ export interface ResumeAuditResult {
   suggestions: string[];
 }
 
-const WEAK_VERBS = [
-  "helped",
-  "worked on",
-  "responsible for",
-  "involved in",
-  "assisted",
-  "participated in",
-  "handled",
-  "did",
-  "made",
-  "used",
-  "was responsible",
-];
-
 const SECTION_KEYS = [
   { id: "summary", labels: ["summary", "profile", "objective"] },
   { id: "skills", labels: ["skills", "core skills", "technical skills"] },
@@ -44,47 +32,6 @@ const SECTION_NAMES: Record<string, string> = {
   projects: "Projects",
   education: "Education",
 };
-
-const KEYWORD_POOL = [
-  "Python",
-  "TypeScript",
-  "JavaScript",
-  "React",
-  "Next.js",
-  "Node.js",
-  "SQL",
-  "PostgreSQL",
-  "AWS",
-  "Azure",
-  "GCP",
-  "Docker",
-  "Kubernetes",
-  "CI/CD",
-  "Git",
-  "Machine Learning",
-  "Deep Learning",
-  "LLM",
-  "AI",
-  "Agent",
-  "MCP",
-  "Prompt Engineering",
-  "RAG",
-  "LangChain",
-  "PyTorch",
-  "TensorFlow",
-  "Data Analysis",
-  "Pandas",
-  "A/B Testing",
-  "Tableau",
-  "Figma",
-  "Product Strategy",
-  "Agile",
-  "Communication",
-  "Leadership",
-  "Project Management",
-  "Stakeholder",
-  "Analytics",
-];
 
 function hasNumber(value: string): boolean {
   return /\d/.test(value);

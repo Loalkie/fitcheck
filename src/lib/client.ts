@@ -329,6 +329,10 @@ export async function writeResume(payload: {
   skills: string;
   profile?: unknown;
   style?: string;
+  /** An existing resume to strengthen instead of writing from notes alone. */
+  currentResume?: string;
+  /** The posting to aim at, so the vocabulary and summary match it. */
+  jobDescription?: string;
 }): Promise<TailoredResume> {
   const res = await fetch("/api/write-resume", {
     method: "POST",

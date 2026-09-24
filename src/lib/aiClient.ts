@@ -3,6 +3,8 @@ export interface AiChatOptions {
   user: string;
   temperature?: number;
   json?: boolean;
+  /** Resumes are long: without an explicit cap some providers truncate mid-JSON. */
+  maxTokens?: number;
 }
 
 export interface AiProviderConfig {
@@ -36,6 +38,7 @@ export async function aiChat(options: AiChatOptions): Promise<string> {
     body: JSON.stringify({
       model,
       temperature: options.temperature ?? 0.2,
+      max_tokens: options.maxTokens ?? 4096,
       ...(options.json ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: options.system },

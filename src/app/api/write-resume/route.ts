@@ -30,16 +30,21 @@ export async function POST(request: NextRequest) {
     const experience = typeof body.experience === "string" ? body.experience : "";
     const education = typeof body.education === "string" ? body.education : "";
     const skills = typeof body.skills === "string" ? body.skills : "";
+    const currentResume = typeof body.currentResume === "string" ? body.currentResume : "";
 
     const hasAnyContent =
       experience.trim().length > 10 ||
       education.trim().length > 3 ||
       skills.trim().length > 2 ||
+      currentResume.trim().length > 40 ||
       (body.profile as UserProfile | null)?.skills?.length;
 
     if (!hasAnyContent) {
       return NextResponse.json(
-        { error: "Add at least a few skills, experience notes, or complete your profile." },
+        {
+          error:
+            "Add a few skills or experience notes, upload a resume to start from, or complete your profile first.",
+        },
         { status: 400 },
       );
     }
@@ -53,6 +58,8 @@ export async function POST(request: NextRequest) {
       education,
       skills,
       profile: (body.profile as UserProfile | null) ?? null,
+      currentResume,
+      jobDescription: typeof body.jobDescription === "string" ? body.jobDescription : "",
       style: ["executive", "modern", "classic", "ats"].includes(String(body.style))
         ? (body.style as "executive" | "modern" | "classic" | "ats")
         : "executive",
