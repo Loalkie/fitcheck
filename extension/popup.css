@@ -94,8 +94,24 @@ button:hover {
   background: #1d4ed8;
 }
 
-#open-app {
+#open-app,
+#save-app-url {
   background: #0f172a;
+}
+
+#connection label {
+  display: grid;
+  gap: 3px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+#connection button {
+  margin-top: 7px;
+}
+
+#app-url-status {
+  margin: 6px 0 0;
 }
 
 #editor {

@@ -1,5 +1,46 @@
 const jobNode = document.getElementById("job");
 
+const DEFAULT_APP_URL = "https://fitcheck-68fa.vercel.app";
+
+/** Same rule as the background script: only http(s) origins are accepted. */
+function normalizeAppUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
+function loadAppUrl() {
+  chrome.storage.local.get("appUrl", ({ appUrl }) => {
+    document.getElementById("appUrl").value = normalizeAppUrl(appUrl) || DEFAULT_APP_URL;
+  });
+}
+
+document.getElementById("save-app-url").addEventListener("click", () => {
+  const status = document.getElementById("app-url-status");
+  const field = document.getElementById("appUrl");
+  const base = normalizeAppUrl(field.value);
+  if (!base) {
+    status.textContent = "Enter a full address such as https://fitcheck-68fa.vercel.app";
+    return;
+  }
+  // A self-hosted or local deployment needs its own host permission, and Chrome
+  // only grants that from a click like this one.
+  chrome.permissions.request({ origins: [`${base}/*`] }, (granted) => {
+    if (!granted) {
+      status.textContent = `Access to ${base} was not granted, so imports will fail.`;
+      return;
+    }
+    chrome.storage.local.set({ appUrl: base }, () => {
+      field.value = base;
+      status.textContent = `Saved — the extension now uses ${base}`;
+    });
+  });
+});
+
 function renderJob(job) {
   if (!job?.title) {
     jobNode.textContent = "Open a job posting to parse it.";
@@ -105,3 +146,4 @@ document.getElementById("save-profile").addEventListener("click", () => {
 });
 
 loadProfile();
+loadAppUrl();

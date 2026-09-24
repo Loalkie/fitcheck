@@ -171,7 +171,9 @@
       });
     });
     drawer.querySelector("[data-open]").addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "OPEN_FITCHECK", url: "http://localhost:3000/jobs" });
+      // The background script knows which deployment to open; the content
+      // script never keeps a copy of the address.
+      chrome.runtime.sendMessage({ type: "OPEN_FITCHECK", path: "/jobs" });
     });
   }
 

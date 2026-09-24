@@ -6,11 +6,14 @@
   "permissions": ["activeTab", "scripting", "storage", "tabs", "notifications"],
   "host_permissions": [
     "http://localhost:3000/*",
+    "https://fitcheck-68fa.vercel.app/*",
+    "https://*.vercel.app/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*",
     "https://*.greenhouse.io/*",
     "https://*.lever.co/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "FitCheck"
