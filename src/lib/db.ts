@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { runMigrations } from "./migrations";
 
 export type SqlValue = string | number | boolean | null;
 
@@ -30,70 +31,6 @@ export class StorageUnavailableError extends Error {
     this.name = "StorageUnavailableError";
   }
 }
-
-/**
- * One schema for both engines. `BIGINT` keeps epoch-millisecond timestamps from
- * overflowing in Postgres and is plain INTEGER affinity in SQLite.
- */
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  created_at BIGINT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  expires_at BIGINT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS workspaces (
-  user_id TEXT PRIMARY KEY,
-  data TEXT NOT NULL,
-  updated_at BIGINT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS extension_tokens (
-  token TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  expires_at BIGINT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at BIGINT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS user_plans (
-  user_id TEXT PRIMARY KEY,
-  plan TEXT NOT NULL,
-  updated_at BIGINT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS "usage" (
-  user_id TEXT NOT NULL,
-  metric TEXT NOT NULL,
-  period TEXT NOT NULL,
-  "count" INTEGER NOT NULL,
-  PRIMARY KEY(user_id, metric, period),
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS rate_limits (
-  bucket TEXT NOT NULL,
-  "key" TEXT NOT NULL,
-  window_start BIGINT NOT NULL,
-  "count" INTEGER NOT NULL,
-  PRIMARY KEY(bucket, "key", window_start)
-);
-`;
 
 function isTemporaryDir(dir: string): boolean {
   const tmp = os.tmpdir();
@@ -214,7 +151,22 @@ function createPostgresDb(connectionString: string): Db {
   });
 
   let schemaError: unknown = null;
-  const schemaReady = pool.query(SCHEMA).catch((err) => {
+  const schemaReady = runMigrations({
+    exec: async (sql) => {
+      await pool.query(sql);
+    },
+    get: async <T>(sql: string, params: SqlValue[]) => {
+      const result = await pool.query(toPostgresPlaceholders(sql), params);
+      return result.rows[0] as T | undefined;
+    },
+    hasColumn: async (table, column) => {
+      const result = await pool.query(
+        "SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2 LIMIT 1",
+        [table, column],
+      );
+      return result.rows.length > 0;
+    },
+  }).catch((err) => {
     schemaError = err;
   });
 
@@ -253,16 +205,37 @@ function createSqliteDb(): Db {
   const sqlite = new Database(path.join(dir, "app.db"));
 
   sqlite.pragma("journal_mode = WAL");
-  sqlite.exec(SCHEMA);
+  let schemaError: unknown = null;
+  const schemaReady = runMigrations({
+    exec: async (sql) => {
+      sqlite.exec(sql);
+    },
+    get: async <T>(sql: string, params: SqlValue[]) => sqlite.prepare(sql).get(...params) as T | undefined,
+    hasColumn: async (table, column) =>
+      (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some(
+        (entry) => entry.name === column,
+      ),
+  }).catch((err) => {
+    schemaError = err;
+  });
   backend = "sqlite";
+
+  async function ready(): Promise<void> {
+    await schemaReady;
+    if (schemaError) {
+      throw new StorageUnavailableError("Could not prepare the SQLite schema.", { cause: schemaError });
+    }
+  }
 
   return {
     prepare(sql) {
       return {
         async get<T>(...params: SqlValue[]): Promise<T | undefined> {
+          await ready();
           return sqlite.prepare(sql).get(...params) as T | undefined;
         },
         async run(...params: SqlValue[]): Promise<void> {
+          await ready();
           sqlite.prepare(sql).run(...params);
         },
       };

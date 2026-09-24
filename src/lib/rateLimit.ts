@@ -43,6 +43,14 @@ export const UPLOAD_RATE_LIMIT: RateLimitPolicy = {
   windowSeconds: 3600,
 };
 
+/** Resets and verification mail both cost a send, so they share a bucket. */
+export const RECOVERY_RATE_LIMIT: RateLimitPolicy = {
+  bucket: "recovery",
+  anonymous: 5,
+  signedIn: 5,
+  windowSeconds: 900,
+};
+
 /** Sign-in and sign-up share a bucket: both are brute-force and spam surfaces. */
 export const AUTH_RATE_LIMIT: RateLimitPolicy = {
   bucket: "auth",

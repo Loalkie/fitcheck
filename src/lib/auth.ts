@@ -1,13 +1,22 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { getDb } from "./db";
 
 export const SESSION_COOKIE = "fit_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+/**
+ * Sessions and extension tokens are stored as digests, so read access to the
+ * database is not the same thing as holding every live login.
+ */
+function tokenDigest(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 interface UserRow {
   id: string;
   email: string;
+  email_verified_at?: number | null;
 }
 
 export function hashPassword(password: string): string {
@@ -29,13 +38,13 @@ export async function createSession(userId: string): Promise<{ token: string; ma
   const expiresAt = Date.now() + SESSION_TTL_MS;
   await getDb()
     .prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .run(token, userId, expiresAt);
+    .run(tokenDigest(token), userId, expiresAt);
   return { token, maxAge: Math.floor(SESSION_TTL_MS / 1000) };
 }
 
 export async function deleteSession(token: string): Promise<void> {
   try {
-    await getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
+    await getDb().prepare("DELETE FROM sessions WHERE token = ?").run(tokenDigest(token));
   } catch {
     // Signing out must never fail, even without storage.
   }
@@ -48,7 +57,7 @@ export async function createExtensionToken(userId: string): Promise<string> {
   const expiresAt = Date.now() + EXTENSION_TOKEN_TTL_MS;
   await getDb()
     .prepare("INSERT INTO extension_tokens (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .run(token, userId, expiresAt);
+    .run(tokenDigest(token), userId, expiresAt);
   return token;
 }
 
@@ -58,21 +67,21 @@ export async function getUserByExtensionToken(token: string | undefined): Promis
   try {
     row = await getDb()
       .prepare(
-        `SELECT u.id, u.email, t.expires_at AS expires_at
+        `SELECT u.id, u.email, u.email_verified_at, t.expires_at AS expires_at
          FROM extension_tokens t JOIN users u ON u.id = t.user_id
          WHERE t.token = ?`,
       )
-      .get<(UserRow & { expires_at: number })>(token);
+      .get<(UserRow & { expires_at: number })>(tokenDigest(token));
   } catch {
     return null;
   }
   if (!row || row.expires_at < Date.now()) return null;
-  return { id: row.id, email: row.email };
+  return { id: row.id, email: row.email, email_verified_at: row.email_verified_at ?? null };
 }
 
 export async function getUserByEmail(email: string): Promise<(UserRow & { password_hash: string }) | null> {
   const row = await getDb()
-    .prepare("SELECT id, email, password_hash FROM users WHERE email = ?")
+    .prepare("SELECT id, email, password_hash, email_verified_at FROM users WHERE email = ?")
     .get<UserRow & { password_hash: string }>(email);
   return row ?? null;
 }
@@ -91,16 +100,16 @@ export async function getSessionUser(token: string | undefined): Promise<UserRow
   try {
     row = await getDb()
       .prepare(
-        `SELECT u.id, u.email, s.expires_at AS expires_at
+        `SELECT u.id, u.email, u.email_verified_at, s.expires_at AS expires_at
          FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token = ?`,
       )
-      .get<(UserRow & { expires_at: number })>(token);
+      .get<(UserRow & { expires_at: number })>(tokenDigest(token));
   } catch {
     return null;
   }
   if (!row || row.expires_at < Date.now()) return null;
-  return { id: row.id, email: row.email };
+  return { id: row.id, email: row.email, email_verified_at: row.email_verified_at ?? null };
 }
 
 export async function requireUser(req: NextRequest): Promise<UserRow | null> {
@@ -136,4 +145,15 @@ function adminEmails(): string[] {
 
 export function isAdminEmail(email: string): boolean {
   return adminEmails().includes(email.trim().toLowerCase());
+}
+
+export async function markEmailVerified(userId: string): Promise<void> {
+  await getDb()
+    .prepare("UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL")
+    .run(Date.now(), userId);
+}
+
+/** Used by the reset flow, and by logout-everywhere style actions. */
+export async function deleteSessionsForUser(userId: string): Promise<void> {
+  await getDb().prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 }

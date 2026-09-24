@@ -465,6 +465,11 @@ button:focus-visible {
     @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900;
   }
 
+  .btn-danger {
+    @apply btn bg-rose-600 text-white hover:bg-rose-700;
+    box-shadow: 0 10px 24px -12px rgba(225, 29, 72, 0.8);
+  }
+
   .btn-sm {
     @apply px-2.5 py-1.5 text-xs;
   }

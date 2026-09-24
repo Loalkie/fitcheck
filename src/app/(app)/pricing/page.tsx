@@ -62,7 +62,12 @@ export default function PricingPage() {
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
-  const [billing, setBilling] = useState<{ plan: string; usage: { fit_check: number; ai_resume: number }; limits: { fit_check: number; ai_resume: number } } | null>(null);
+  const [billing, setBilling] = useState<{
+    plan: string;
+    usage: { fit_check: number; ai_resume: number };
+    limits: { fit_check: number; ai_resume: number };
+    status?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -71,6 +76,21 @@ export default function PricingPage() {
       .then((data) => setBilling(data))
       .catch(() => {});
   }, [user]);
+
+  async function openBillingPortal() {
+    setBusyPlan("portal");
+    setMessage("");
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Could not open the billing portal.");
+      window.location.href = data.url;
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not open the billing portal.");
+    } finally {
+      setBusyPlan(null);
+    }
+  }
 
   async function choosePlan(plan: string) {
     if (!user) {
@@ -150,7 +170,7 @@ export default function PricingPage() {
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">Current plan</p>
               <p className="mt-1 text-lg font-bold capitalize text-slate-900">{billing.plan}</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <div>
                 <p className="label">Fit checks</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">
@@ -163,8 +183,22 @@ export default function PricingPage() {
                   {billing.usage.ai_resume} / {Number.isFinite(billing.limits.ai_resume) ? billing.limits.ai_resume : "∞"}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => void openBillingPortal()}
+                disabled={busyPlan === "portal"}
+                className="btn-secondary btn-sm disabled:bg-slate-200"
+              >
+                {busyPlan === "portal" ? "Opening…" : "Manage billing"}
+              </button>
             </div>
           </div>
+          {billing.status === "past_due" && (
+            <p className="mt-4 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+              Your last payment did not go through. Update your card in Manage billing to keep your plan — Stripe is
+              retrying in the meantime.
+            </p>
+          )}
         </section>
       )}
 

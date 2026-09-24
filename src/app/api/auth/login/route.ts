@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await createSession(user.id);
-    const res = NextResponse.json({ user: { email: user.email } });
+    const res = NextResponse.json({ user: { email: user.email, emailVerified: Boolean(user.email_verified_at) } });
     res.cookies.set(SESSION_COOKIE, session.token, {
       ...SESSION_COOKIE_OPTIONS,
       maxAge: session.maxAge,

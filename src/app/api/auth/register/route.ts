@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const user = await createUser(email, hashPassword(password));
     const session = await createSession(user.id);
-    const res = NextResponse.json({ user: { email: user.email } });
+    const res = NextResponse.json({ user: { email: user.email, emailVerified: false } });
     res.cookies.set(SESSION_COOKIE, session.token, {
       ...SESSION_COOKIE_OPTIONS,
       maxAge: session.maxAge,

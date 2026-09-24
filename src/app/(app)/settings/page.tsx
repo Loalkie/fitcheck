@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { useDialog } from "@/components/Dialogs";
+import { deleteAccount, sendVerificationEmail } from "@/lib/client";
 
 const FIELDS = [
   { id: "ADZUNA_APP_ID", label: "Adzuna App ID", placeholder: "Adzuna application id" },
@@ -17,13 +19,57 @@ const FIELDS = [
 ];
 
 export default function SettingsPage() {
-  const { user, openAuth } = useApp();
+  const { user, openAuth, signOut } = useApp();
+  const { confirm, notify } = useDialog();
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [health, setHealth] = useState<{ ok: boolean; db: boolean } | null>(null);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState("");
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  async function sendVerification() {
+    setVerifyBusy(true);
+    try {
+      const result = await sendVerificationEmail();
+      notify(
+        result.alreadyVerified
+          ? "That address is already verified."
+          : "Verification email sent — check your inbox.",
+      );
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Could not send the verification email.");
+    } finally {
+      setVerifyBusy(false);
+    }
+  }
+
+  async function removeAccount() {
+    const ok = await confirm({
+      title: "Delete this account?",
+      message:
+        "The account, its saved workspace, sessions, and billing link are removed for good. This cannot be undone.",
+      confirmLabel: "Delete account",
+      danger: true,
+    });
+    if (!ok) return;
+    setDeleteBusy(true);
+    try {
+      await deleteAccount(deletePassword);
+      await signOut();
+      notify("Your account was deleted.");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Could not delete the account.");
+    } finally {
+      setDeleteBusy(false);
+      setDeletePassword("");
+      setDeleteOpen(false);
+    }
+  }
 
   function refreshHealth() {
     setHealth(null);
@@ -88,20 +134,89 @@ export default function SettingsPage() {
     );
   }
 
-  if (denied) {
-    return (
-      <section className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center">
-        <p className="text-sm font-semibold text-slate-800">Owner-only settings</p>
-        <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
-          These keys decide which AI provider every visitor&apos;s resume is sent to and which Stripe account takes
-          payments, so they are limited to the deployment owner. The rest of the app works normally.
-        </p>
-      </section>
-    );
-  }
+  const ownerOnly = (
+    <section className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center">
+      <p className="text-sm font-semibold text-slate-800">Owner-only settings</p>
+      <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
+        These keys decide which AI provider every visitor&apos;s resume is sent to and which Stripe account takes
+        payments, so they are limited to the deployment owner. The rest of the app works normally.
+      </p>
+    </section>
+  );
 
   return (
     <div className="space-y-6">
+      <section className="card p-5">
+        <h2 className="text-sm font-bold text-slate-900">Account</h2>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="label">Signed in as</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{user.email}</p>
+          </div>
+          <div>
+            <p className="label">Email status</p>
+            <p className={`mt-1 text-sm font-semibold ${user.emailVerified ? "text-emerald-700" : "text-amber-700"}`}>
+              {user.emailVerified ? "Verified" : "Not verified yet"}
+            </p>
+          </div>
+          {!user.emailVerified && (
+            <button
+              type="button"
+              onClick={() => void sendVerification()}
+              disabled={verifyBusy}
+              className="btn-secondary btn-sm disabled:bg-slate-200"
+            >
+              {verifyBusy ? "Sending…" : "Send verification email"}
+            </button>
+          )}
+        </div>
+        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-500">
+          Verification is optional. It exists so password resets and billing notices reach an address you control.
+        </p>
+      </section>
+
+      <section className="card p-5">
+        <h2 className="text-sm font-bold text-rose-700">Danger zone</h2>
+        <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-slate-500">
+          Deleting the account removes your sign-in, synced workspace, and the link to any subscription. Cancel the
+          subscription first from the pricing page if you are still being billed.
+        </p>
+        {deleteOpen ? (
+          <div className="mt-3 max-w-sm space-y-3">
+            <div>
+              <label className="label">Confirm your password</label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                className="field mt-1.5"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void removeAccount()}
+                disabled={deleteBusy || !deletePassword}
+                className="btn-danger btn-sm disabled:bg-slate-200"
+              >
+                {deleteBusy ? "Deleting…" : "Delete account"}
+              </button>
+              <button type="button" onClick={() => setDeleteOpen(false)} className="btn-secondary btn-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setDeleteOpen(true)} className="btn-secondary btn-sm mt-3">
+            Delete account
+          </button>
+        )}
+      </section>
+
+      {denied && ownerOnly}
+
+      {!denied && (
+        <>
       <section className="card p-5">
         <h2 className="text-sm font-bold text-slate-900">Integrations & AI</h2>
         <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-slate-500">
@@ -152,6 +267,8 @@ export default function SettingsPage() {
         </button>
         {error ? <p className="mt-3 text-xs font-semibold text-rose-600">{error}</p> : null}
       </section>
+        </>
+      )}
     </div>
   );
 }

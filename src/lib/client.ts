@@ -63,6 +63,7 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 export interface AuthUser {
   email: string;
+  emailVerified?: boolean;
 }
 
 export async function register(email: string, password: string): Promise<AuthUser> {
@@ -85,6 +86,42 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 
 export async function logout(): Promise<void> {
   await jsonFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await jsonFetch<{ ok: boolean }>("/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await jsonFetch<{ ok: boolean }>("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+export async function sendVerificationEmail(): Promise<{ alreadyVerified?: boolean }> {
+  return jsonFetch<{ ok: boolean; alreadyVerified?: boolean }>("/api/auth/send-verification", { method: "POST" });
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+  await jsonFetch<{ ok: boolean }>("/api/auth/verify-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  await jsonFetch<{ ok: boolean }>("/api/auth/delete-account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
 }
 
 export async function getMe(): Promise<AuthUser | null> {
