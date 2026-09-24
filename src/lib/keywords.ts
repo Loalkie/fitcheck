@@ -179,6 +179,12 @@ export const BANNED_PHRASES: string[] = [
   "as a way to",
   "so as to",
   "with the goal of",
+  // Nouns that promise a detail and never deliver one.
+  "improvements",
+  "initiatives",
+  "efforts",
+  "a variety of",
+  "various",
 ];
 
 /** How often each term appears in the text, case-insensitively. */
