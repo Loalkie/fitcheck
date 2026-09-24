@@ -82,21 +82,48 @@ function buildFromSections(sections: Record<string, string>): string {
 function ResumePreview({ text }: { text: string }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const headings = new Set(["SUMMARY", "PROFILE", "TARGETED PROFILE", "PROFESSIONAL PROFILE", "CORE SKILLS", "CORE COMPETENCIES", "AREAS OF EXPERTISE", "CAPABILITIES", "EXPERIENCE", "PROFESSIONAL EXPERIENCE", "WORK EXPERIENCE", "IMPACT & EXPERIENCE", "PROJECTS", "SELECTED PROJECTS", "SELECTED WORK", "EDUCATION", "INTERNSHIPS"]);
+  const nameIndex = lines.findIndex((line) => line.trim().length > 0);
   return (
-    <div className="mt-4 max-h-[620px] overflow-y-auto rounded-xl border border-white/10 bg-[#0b0f19]/80 p-5 backdrop-blur-xl">
+    <div className="mt-4 max-h-[620px] overflow-y-auto rounded-xl border border-white/10 bg-[#0b0f19]/80 p-6 backdrop-blur-xl">
       {lines.map((line, index) => {
         const trimmed = line.trim();
-        if (!trimmed) return <div key={index} className="h-2" />;
-        if (headings.has(trimmed.toUpperCase())) {
+        if (!trimmed) return <div key={index} className="h-2.5" />;
+        if (index === nameIndex) {
           return (
-            <p key={index} className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-brand-700">
+            <p key={index} className="text-lg font-semibold tracking-tight text-white">
               {trimmed}
             </p>
           );
         }
+        if (headings.has(trimmed.toUpperCase())) {
+          return (
+            // brand-700 on this panel is a 2.2:1 contrast ratio — invisible. The
+            // light brand tint is the readable one in the dark app shell.
+            <p key={index} className="mt-4 border-b border-white/10 pb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-100">
+              {trimmed}
+            </p>
+          );
+        }
+        if (/^[-•*·]\s+/.test(trimmed)) {
+          return (
+            <p key={index} className="relative mt-1 pl-4 text-sm leading-relaxed text-slate-700">
+              <span aria-hidden className="absolute left-0 text-brand-100">
+                •
+              </span>
+              {trimmed.replace(/^[-•*·]\s+/, "")}
+            </p>
+          );
+        }
+        // Role and education lines carry a year; the weight makes the page scannable.
+        const isRoleLine = /\b(?:19|20)\d{2}\b/.test(trimmed);
         return (
-          <p key={index} className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-            {line}
+          <p
+            key={index}
+            className={`whitespace-pre-wrap text-sm leading-relaxed ${
+              isRoleLine ? "mt-1 font-semibold text-white/90" : "text-slate-700"
+            }`}
+          >
+            {trimmed}
           </p>
         );
       })}
