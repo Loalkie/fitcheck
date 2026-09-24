@@ -184,7 +184,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {children}
           </div>
           <footer className="mx-auto mt-12 w-full max-w-6xl border-t border-slate-200 pt-6 text-center text-xs text-slate-400">
-            Scores are advisory reference, not a hiring decision. Never fabricate experience to raise a score.
+            <p>Scores are advisory reference, not a hiring decision. Never fabricate experience to raise a score.</p>
+            <p className="mt-2 flex items-center justify-center gap-3">
+              <Link href="/privacy" className="hover:text-slate-600">
+                Privacy
+              </Link>
+              <span aria-hidden="true">·</span>
+              <Link href="/terms" className="hover:text-slate-600">
+                Terms
+              </Link>
+            </p>
           </footer>
         </main>
       </div>

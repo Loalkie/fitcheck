@@ -202,7 +202,20 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-slate-100 py-8 text-center text-xs text-slate-400">
-        FitCheck is an advisory tool, not a guarantee of interviews or offers. Never fabricate experience.
+        <p>FitCheck is an advisory tool, not a guarantee of interviews or offers. Never fabricate experience.</p>
+        <p className="mt-3 flex items-center justify-center gap-3">
+          <Link href="/privacy" className="hover:text-slate-200">
+            Privacy policy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms" className="hover:text-slate-200">
+            Terms of service
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/pricing" className="hover:text-slate-200">
+            Pricing
+          </Link>
+        </p>
       </footer>
     </main>
   );
