@@ -92,11 +92,16 @@ export async function generateResume(system: string, user: string, startedAt = D
   let issues = lintResume(resume);
   const serious = seriousIssues(issues);
   const withinBudget = Date.now() - startedAt < 20_000;
-  if (serious.length >= 2 && withinBudget) {
+  // One violation is already a tell a recruiter would notice, so repair on the
+  // first one — but never hand back a repair that is worse than the draft.
+  if (serious.length >= 1 && withinBudget) {
     const repaired = await repairDraft(resume, serious);
     if (repaired && repaired.length >= 120) {
-      resume = repaired;
-      issues = lintResume(resume);
+      const repairedIssues = lintResume(repaired);
+      if (seriousIssues(repairedIssues).length <= serious.length) {
+        resume = repaired;
+        issues = repairedIssues;
+      }
     }
   }
 

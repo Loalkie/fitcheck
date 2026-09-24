@@ -123,7 +123,7 @@ export function buildUserBrief(context: PromptContext): string {
   return lines.filter((line) => line !== undefined).join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
-export const REPAIR_SYSTEM = `You are a ruthless resume editor. You receive a draft and a list of rule violations found in it. Fix exactly those problems and change nothing else: keep every fact, number, employer, title, and date identical, and keep the same sections and order. Follow the banned-word and bullet rules you are given. Return a single JSON object: { "resume": string, "notes": string } where notes is one sentence describing what you fixed.`;
+export const REPAIR_SYSTEM = `You are a ruthless resume editor. Every bullet must end on a fact — a number, a named system, a shipped artifact — never on an ", -ing …" clause, and never on a word that praises the work instead of describing it. You receive a draft and a list of rule violations found in it. Fix exactly those problems and change nothing else: keep every fact, number, employer, title, and date identical, and keep the same sections and order. Follow the banned-word and bullet rules you are given. Return a single JSON object: { "resume": string, "notes": string } where notes is one sentence describing what you fixed.`;
 
 export function buildRepairUser(draft: string, violations: string[]): string {
   return [

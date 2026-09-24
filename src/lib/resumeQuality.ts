@@ -13,7 +13,14 @@ export interface DraftIssue {
 
 /** A trailing ", -ing …" clause that restates the bullet instead of adding a fact. */
 const TAIL_CLAUSE =
-  /,\s+(?:and\s+)?(?:enabling|ensuring|improving|fostering|streamlining|enhancing|allowing|helping|driving|supporting|facilitating|contributing to|leading to|resulting in|showcasing|demonstrating)\b/i;
+  /,\s+(?:and\s+)?(?:enabling|ensuring|improving|fostering|streamlining|enhancing|allowing|helping|driving|supporting|facilitating|contributing to|leading to|resulting in|showcasing|demonstrating|automating|reducing|increasing|expanding|delivering|building|creating|managing|developing)\b/i;
+
+/**
+ * The general shape behind all of those verbs: a bullet that ends in ", <verb>ing
+ * …". The list above catches the common ones anywhere in the line; this catches
+ * the rest at the end, where a fact should be instead.
+ */
+const TRAILING_GERUND = /,\s+(?:and\s+)?[a-z]+ing\b[^.!?]*[.!?]?$/i;
 
 const PLACEHOLDER =
   /\[(?:your name|name|city,?\s*state|city|state|email|e-mail|phone|linkedin|github|website|company|employer|date|dates|month year|year|n\/a|xxx+)\]/i;
@@ -47,6 +54,16 @@ const KNOWN_HEADINGS = [
   "VOLUNTEER",
 ];
 
+/**
+ * True when a bullet ends on a decorative ", -ing …" clause instead of a fact.
+ * The audit uses this too, so pasted resumes get the same criticism.
+ */
+export function hasDecorativeTail(bullet: string): boolean {
+  const match = TRAILING_GERUND.exec(bullet.trim().replace(/^[-•*·]\s+/, ""));
+  if (!match) return false;
+  return !/\d/.test(match[0]);
+}
+
 function bulletLines(text: string): string[] {
   return text
     .split(/\n+/)
@@ -72,7 +89,8 @@ export function lintResume(text: string): DraftIssue[] {
   }
 
   for (const line of lines) {
-    if (TAIL_CLAUSE.test(line)) {
+    const isBullet = /^\s*[-•*·]\s+/.test(line);
+    if (TAIL_CLAUSE.test(line) || (isBullet && hasDecorativeTail(line))) {
       issues.push({ rule: "trailing -ing clause", detail: line.trim().slice(0, 140) });
     }
   }

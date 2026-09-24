@@ -115,6 +115,20 @@ describe("resume drafts without an AI provider", () => {
     assert.match(resume, /40 engineers/, "facts must not be lost");
   });
 
+  it("flags decorative '-ing' tails when auditing a pasted resume", async () => {
+    const { body } = await client.json(
+      "/api/resume-audit",
+      postJson({
+        resumeText:
+          "SUMMARY\nBackend engineer.\n\nEXPERIENCE\n- Rebuilt the settlement pipeline, cutting runtime in half and improving reliability\n- Shipped the CLI tool used by 40 engineers",
+        jobDescription: "Senior backend engineer",
+      }),
+    );
+
+    const tails = body.weakBullets.flatMap((bullet) => bullet.issues).filter((issue) => /-ing/.test(issue));
+    assert.ok(tails.length >= 1, `expected a decorative tail to be reported, got ${JSON.stringify(body.weakBullets)}`);
+  });
+
   it("refuses a write request with nothing to work from", async () => {
     const { res } = await client.json("/api/write-resume", postJson({ name: "Nobody" }));
     assert.equal(res.status, 400);

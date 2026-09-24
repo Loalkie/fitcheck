@@ -1,4 +1,5 @@
 import { SKILL_POOL as KEYWORD_POOL, WEAK_VERBS } from "./keywords";
+import { hasDecorativeTail } from "./resumeQuality";
 
 export interface WeakBullet {
   text: string;
@@ -71,6 +72,9 @@ function auditBullet(bullet: string): { issues: string[]; suggestion: string } |
   if (!hasNumber(bullet)) issues.push("No measurable result");
   if (bullet.split(/\s+/).length > 38) issues.push("Too long");
   if (/very|really|a lot|etc\.?/i.test(bullet)) issues.push("Vague filler");
+  // "..., streamlining workflows" tells a reader nothing; the fact should be
+  // the end of the sentence instead.
+  if (hasDecorativeTail(bullet)) issues.push("Ends with a decorative '-ing' clause");
   if (issues.length === 0) return null;
 
   let suggestion = "Rewrite as: [Strong verb] + [what you did] + [how] + [result/number].";
