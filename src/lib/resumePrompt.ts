@@ -18,8 +18,8 @@ Non-negotiable rules:
 4. Bullet shape: [verb] + [what you did] + [how, with what] + [result if the source states one]. One line, 14-28 words, 2-5 bullets per role, strongest first. Three strong bullets beat seven thin ones.
 5. Cut every decoration. Banned words and constructions: ${BANNED_LIST}.
 6. Never end a bullet with an ", -ing ..." tail that restates it ("..., enabling secure payments", "..., streamlining workflows", "..., fostering collaboration"). If the clause carries no fact, delete it; if it carries a fact, make that fact the bullet.
-7. Every bullet must add information a recruiter could not already assume from the job title. Delete bullets like "Attended meetings" or "Collaborated with the team" unless they carry scope, ownership, or a result.
-8. Mirror the posting's vocabulary wherever the source material supports it. Never claim a skill the source does not show.
+7. Every bullet must add information a recruiter could not already assume from the job title, and no two bullets may say the same thing in different words. Delete bullets like "Attended meetings", "Collaborated with the team", or a second bullet about the same system unless it carries new scope, ownership, or a result; prefer four distinct bullets over six overlapping ones.
+8. Mirror the posting's vocabulary wherever the source material supports it. Never claim a skill the source does not show. Skills and competency lines list only hard skills, tools, and technologies the source names — never pad them with soft phrases ("strong communication", "cross-team collaboration", "reliability").
 9. Summary: 2-3 sentences, 50 words maximum, naming the target role, years of experience, domain, and the two strongest proof points. No objectives, no "seeking", no "aspiring".
 10. Plain text only: no markdown, no bold, no tables, no emoji. Section headings in CAPS on their own line, one blank line between sections, name on the first line, "- " for bullets.
 11. Target 400-650 words for the whole resume. Keep it to one page unless the source shows more than ten years of experience.
@@ -123,7 +123,18 @@ export function buildUserBrief(context: PromptContext): string {
   return lines.filter((line) => line !== undefined).join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
-export const REPAIR_SYSTEM = `You are a ruthless resume editor. Every bullet must end on a fact — a number, a named system, a shipped artifact — never on an ", -ing …" clause, and never on a word that praises the work instead of describing it. You receive a draft and a list of rule violations found in it. Fix exactly those problems and change nothing else: keep every fact, number, employer, title, and date identical, and keep the same sections and order. Follow the banned-word and bullet rules you are given. Return a single JSON object: { "resume": string, "notes": string } where notes is one sentence describing what you fixed.`;
+export const REPAIR_SYSTEM = `You are a ruthless resume editor. Every bullet must end on a fact — a number, a named system, a shipped artifact — never on an ", -ing …" clause, and never on a word that praises the work instead of describing it.
+
+You receive a draft and the rule violations found in it. Fix exactly those problems and change nothing else: keep every fact, number, employer, title, and date identical, and keep the same sections and order.
+
+How to fix the common ones:
+- A decorative ", -ing …" clause with no fact in it: delete the clause and end the bullet on the work itself. A shorter bullet is a better bullet; do not paraphrase the flourish.
+- A clause that does carry a fact: make that fact the end of the bullet in plain words ("Rebuilt the settlement pipeline, cutting nightly runtime from 6h to 40m" stays as written).
+- Two bullets that restate each other: keep the stronger one, fold any fact the other alone carries into it, and drop the weaker one. Never keep both.
+- A weak opener: replace it with the strongest honest verb and keep the rest of the bullet intact.
+- A filler or banned phrase: delete it and repair the sentence around it.
+
+Return a single JSON object: { "resume": string, "notes": string } where notes is one sentence describing what you fixed.`;
 
 export function buildRepairUser(draft: string, violations: string[]): string {
   return [

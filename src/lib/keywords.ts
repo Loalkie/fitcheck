@@ -171,6 +171,14 @@ export const BANNED_PHRASES: string[] = [
   "holistic",
   "best-in-class",
   "strong communication skills",
+  // Padding that buys length instead of adding a fact.
+  "with a focus on",
+  "aimed at",
+  "in an effort to",
+  "in order to",
+  "as a way to",
+  "so as to",
+  "with the goal of",
 ];
 
 /** How often each term appears in the text, case-insensitively. */

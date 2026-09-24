@@ -1,6 +1,6 @@
 import { aiChat } from "./aiClient";
 import { REPAIR_SYSTEM, buildRepairUser } from "./resumePrompt";
-import { describeIssues, formatResume, lintResume, seriousIssues, type DraftIssue } from "./resumeQuality";
+import { describeIssues, formatResume, lintResume, seriousIssues, tidyResume, type DraftIssue } from "./resumeQuality";
 
 export interface GeneratedResume {
   resume: string;
@@ -82,7 +82,10 @@ async function repairDraft(draft: string, issues: DraftIssue[]): Promise<string 
  * Generates a resume, then cleans it up: the model output is normalised, linted
  * for the cliches that make a resume read as machine-written, and repaired once
  * when the draft trips those rules. The repair is skipped when the first call
- * already ate the time budget, so a slow provider still returns a draft.
+ * already ate the time budget, so a slow provider still returns a draft. The
+ * last pass is deterministic, because a model that ignored the rule once will
+ * ignore it again — and a bullet that ends on a flourish is worse than a short
+ * bullet, so the flourish goes even when the repair failed to remove it.
  */
 export async function generateResume(system: string, user: string, startedAt = Date.now()): Promise<GeneratedResume> {
   const raw = await chatJson(system, user);
@@ -100,10 +103,16 @@ export async function generateResume(system: string, user: string, startedAt = D
       const repairedIssues = lintResume(repaired);
       if (seriousIssues(repairedIssues).length <= serious.length) {
         resume = repaired;
-        issues = repairedIssues;
       }
     }
   }
+
+  const tidied = tidyResume(resume);
+  if (tidied !== resume) {
+    console.log("[resume] cut a decorative clause the repair pass left behind");
+    resume = tidied;
+  }
+  issues = lintResume(resume);
 
   const notes = typeof raw.notes === "string" ? raw.notes.trim() : "";
   return {

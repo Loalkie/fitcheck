@@ -3,8 +3,10 @@ import type { TailorResult } from "./tailor";
 import { improveResume } from "./improve";
 import type { ResumeStyle } from "./resumeStyle";
 import { hasAiProvider } from "./aiClient";
+import { analyseKeywords } from "./keywords";
 import { buildUserBrief, buildWriteSystem } from "./resumePrompt";
 import { generateResume } from "./resumeGeneration";
+import { keywordGapNote, manualPassNote } from "./resumeQuality";
 
 export interface WriteResumeInput {
   name: string;
@@ -70,7 +72,13 @@ async function aiWrite(input: WriteResumeInput): Promise<TailorResult> {
     tailoredResume: generated.resume,
     changes: generated.changes,
     addedKeywords: generated.addedKeywords,
-    notes: generated.notes,
+    notes: [
+      generated.notes,
+      keywordGapNote(analyseKeywords(input.jobDescription ?? "", material).missing, generated.notes),
+      manualPassNote(generated.remainingIssues),
+    ]
+      .filter(Boolean)
+      .join(" "),
     engine: "ai",
   };
 }

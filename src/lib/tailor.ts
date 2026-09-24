@@ -5,6 +5,7 @@ import { hasAiProvider } from "./aiClient";
 import { analyseKeywords } from "./keywords";
 import { buildTailorSystem, buildUserBrief } from "./resumePrompt";
 import { generateResume } from "./resumeGeneration";
+import { keywordGapNote, manualPassNote } from "./resumeQuality";
 
 export interface TailorInput {
   resumeText: string;
@@ -42,12 +43,8 @@ async function aiTailor(input: TailorInput): Promise<TailorResult> {
   const { missing } = analyseKeywords(input.jobDescription, input.resumeText);
   const notes = [
     generated.notes,
-    missing.length
-      ? `The posting also asks for ${missing.slice(0, 5).join(", ")} — add it only if you have really done it.`
-      : "",
-    generated.remainingIssues.length
-      ? `Worth a manual pass: ${generated.remainingIssues[0].detail}`
-      : "",
+    keywordGapNote(missing, generated.notes),
+    manualPassNote(generated.remainingIssues),
   ]
     .filter(Boolean)
     .join(" ");

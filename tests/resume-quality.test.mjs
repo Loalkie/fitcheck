@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { makeClient, startApp } from "./helpers/app.mjs";
 
@@ -132,5 +133,118 @@ describe("resume drafts without an AI provider", () => {
   it("refuses a write request with nothing to work from", async () => {
     const { res } = await client.json("/api/write-resume", postJson({ name: "Nobody" }));
     assert.equal(res.status, 400);
+  });
+});
+
+/** A model that ignores the rules is the case the deterministic pass exists for. */
+const TAIL_AND_DUPLICATE_DRAFT = [
+  "JORDAN LEE",
+  "jordan.lee@example.com | Seattle, WA",
+  "",
+  "SUMMARY",
+  "Backend engineer with 5 years building payment and order systems in Java and AWS.",
+  "",
+  "EXPERIENCE",
+  "Senior Software Engineer, Nordstrom, 2022 - Present",
+  "- Migrated batch jobs to AWS, cutting failures across the order management service",
+  "- Led migration of the monolith to services, breaking the legacy codebase into scalable components",
+  "- Led migration of the monolith to services, decomposing payment flows into deployable units",
+  "- Mentored 2 junior engineers and reviewed pull requests to raise code quality",
+].join("\n");
+
+describe("resume drafts that come back from the model already broken", () => {
+  let app;
+  let client;
+  let aiServer;
+  const calls = [];
+  let draftReply;
+  let repairReply;
+
+  before(async () => {
+    aiServer = createServer((req, res) => {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        const body = JSON.parse(Buffer.concat(chunks).toString() || "{}");
+        const system = body.messages?.[0]?.content ?? "";
+        const repairing = /ruthless resume editor/.test(system);
+        calls.push({ repairing, user: body.messages?.[1]?.content ?? "" });
+        const content = JSON.stringify(repairing ? repairReply : draftReply);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ message: { content } }] }));
+      });
+    });
+    await new Promise((resolve) => aiServer.listen(0, "127.0.0.1", resolve));
+    const aiUrl = `http://127.0.0.1:${aiServer.address().port}/v1`;
+    app = await startApp({ env: { AI_API_KEY: "test-key", AI_API_URL: aiUrl } });
+    client = makeClient(app.baseUrl);
+  });
+
+  after(async () => {
+    await app?.stop();
+    await new Promise((resolve) => aiServer.close(resolve));
+  });
+
+  it("cuts the decorative clause a failed repair left behind, and keeps the notes readable", async () => {
+    calls.length = 0;
+    draftReply = {
+      tailoredResume: TAIL_AND_DUPLICATE_DRAFT,
+      changes: ["Reordered the experience bullets."],
+      addedKeywords: ["AWS"],
+      notes: "Verify the failure numbers before sending.",
+    };
+    // The repair pass gives back the same draft, so only the deterministic pass can save it.
+    repairReply = { resume: TAIL_AND_DUPLICATE_DRAFT, notes: "Tidied the bullets." };
+
+    const { res, body } = await client.json(
+      "/api/tailor-resume",
+      postJson({
+        resumeText: TAIL_AND_DUPLICATE_DRAFT,
+        jobDescription: "Senior Backend Engineer working on our payments platform with Kubernetes and Terraform.",
+        company: "Stripe",
+        role: "Senior Backend Engineer",
+        style: "executive",
+      }),
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(body.engine, "ai");
+    const tailedLines = body.tailoredResume
+      .split("\n")
+      .filter((line) => /^-\s/.test(line) && /,\s+(?:and\s+)?[a-z]+ing\b[^.!?]*[.!?]?$/i.test(line));
+    assert.deepEqual(tailedLines, [], `a decorative tail survived:\n${body.tailoredResume}`);
+    assert.match(body.tailoredResume, /Migrated batch jobs to AWS/, "the fact must survive the cut");
+    assert.match(body.tailoredResume, /Mentored 2 junior engineers/, "untouched bullets must survive");
+
+    assert.ok(calls.some((call) => call.repairing), "the linter should have asked for a repair pass");
+    const repairPrompt = calls.find((call) => call.repairing).user;
+    assert.match(repairPrompt, /restates another bullet/, "duplicate bullets should reach the repair prompt");
+    assert.match(repairPrompt, /trailing -ing clause/, "the decorative tail should reach the repair prompt");
+
+    assert.ok(!/\s-\s/.test(body.notes), `lint detail should not leak its bullet marker: ${body.notes}`);
+    assert.ok(!/Worth a manual pass/.test(body.notes), `raw lint detail leaked: ${body.notes}`);
+  });
+
+  it("does not repeat the keyword gaps the model already warned about", async () => {
+    draftReply = {
+      tailoredResume: TAIL_AND_DUPLICATE_DRAFT,
+      changes: [],
+      addedKeywords: [],
+      notes: "The source shows nothing for Kubernetes, Terraform or MongoDB — do not add them.",
+    };
+    repairReply = { resume: TAIL_AND_DUPLICATE_DRAFT, notes: "" };
+
+    const { body } = await client.json(
+      "/api/tailor-resume",
+      postJson({
+        resumeText: TAIL_AND_DUPLICATE_DRAFT,
+        jobDescription: "Senior Backend Engineer with Kubernetes, Terraform and MongoDB experience.",
+        role: "Senior Backend Engineer",
+        style: "executive",
+      }),
+    );
+
+    assert.match(body.notes, /do not add them/i);
+    assert.ok(!/The posting also asks for/.test(body.notes), `the gap was reported twice: ${body.notes}`);
   });
 });

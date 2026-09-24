@@ -64,6 +64,62 @@ export function hasDecorativeTail(bullet: string): boolean {
   return !/\d/.test(match[0]);
 }
 
+/**
+ * Cuts the decorative clause off a bullet. A clause carrying a number is a
+ * result and stays; a line that would drop below a handful of words keeps its
+ * wording rather than turning into a fragment.
+ */
+export function stripDecorativeTail(bullet: string): string {
+  const text = bullet.trim();
+  const match = TRAILING_GERUND.exec(text);
+  if (!match || /\d/.test(match[0])) return text;
+  const kept = text.slice(0, match.index).replace(/[\s,;]+$/, "");
+  // Three words is a fragment; four is still a bullet ("Migrated batch jobs to AWS").
+  return kept.split(/\s+/).length >= 4 ? kept : text;
+}
+
+function plain(line: string): string {
+  return line.trim().replace(/^[-•*·]\s+/, "");
+}
+
+/** Function words that say nothing about what a bullet covers. */
+const STOP_WORDS = new Set([
+  "with", "from", "that", "this", "into", "over", "across", "their", "there",
+  "which", "while", "using", "used", "were", "been", "have", "has", "also",
+  "than", "then", "them", "they", "each", "other", "only", "such", "when",
+  "what", "where", "will", "would", "could", "should", "must", "more", "most",
+  "both", "within", "without", "your", "ours", "these", "those", "about",
+]);
+
+function contentWords(bullet: string): Set<string> {
+  return new Set(
+    bullet
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 4 && !STOP_WORDS.has(word)),
+  );
+}
+
+/**
+ * Two bullets that open with the same verb and talk about the same things are
+ * one bullet written twice — the fastest way for a resume to read as padded.
+ */
+function restatesAnotherBullet(bullets: string[]): DraftIssue | null {
+  for (let i = 0; i < bullets.length; i += 1) {
+    for (let j = i + 1; j < bullets.length; j += 1) {
+      if (firstOpener(bullets[i]) !== firstOpener(bullets[j])) continue;
+      const shared = [...contentWords(bullets[i])].filter((word) => contentWords(bullets[j]).has(word));
+      if (shared.length >= 2) {
+        return {
+          rule: "restates another bullet",
+          detail: `"${bullets[i].slice(0, 80)}" and "${bullets[j].slice(0, 80)}" overlap on ${shared.slice(0, 4).join(", ")}`,
+        };
+      }
+    }
+  }
+  return null;
+}
+
 function bulletLines(text: string): string[] {
   return text
     .split(/\n+/)
@@ -84,26 +140,26 @@ export function lintResume(text: string): DraftIssue[] {
     const pattern = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
     const line = lines.find((candidate) => pattern.test(candidate));
     if (line) {
-      issues.push({ rule: "banned phrase", detail: `"${phrase}" appears in: ${line.trim().slice(0, 120)}` });
+      issues.push({ rule: "banned phrase", detail: `"${phrase}" appears in: ${plain(line).slice(0, 120)}` });
     }
   }
 
   for (const line of lines) {
     const isBullet = /^\s*[-•*·]\s+/.test(line);
     if (TAIL_CLAUSE.test(line) || (isBullet && hasDecorativeTail(line))) {
-      issues.push({ rule: "trailing -ing clause", detail: line.trim().slice(0, 140) });
+      issues.push({ rule: "trailing -ing clause", detail: plain(line).slice(0, 140) });
     }
   }
 
   for (const line of lines) {
     if (PLACEHOLDER.test(line)) {
-      issues.push({ rule: "placeholder left in", detail: line.trim().slice(0, 100) });
+      issues.push({ rule: "placeholder left in", detail: plain(line).slice(0, 100) });
     }
   }
 
   for (const line of lines) {
     if (WEAK_OPENING.test(line.trim())) {
-      issues.push({ rule: "weak bullet opener", detail: line.trim().slice(0, 120) });
+      issues.push({ rule: "weak bullet opener", detail: plain(line).slice(0, 120) });
     }
   }
 
@@ -123,6 +179,9 @@ export function lintResume(text: string): DraftIssue[] {
     const words = bullet.split(/\s+/).length;
     if (words > 34) issues.push({ rule: "bullet too long", detail: `${words} words: ${bullet.slice(0, 100)}` });
   }
+
+  const duplicate = restatesAnotherBullet(bullets);
+  if (duplicate) issues.push(duplicate);
 
   if (/\*\*|_{2}|`/.test(text)) {
     issues.push({ rule: "markdown in a plain-text resume", detail: "**bold**, __underline__ or backticks found" });
@@ -166,10 +225,73 @@ export function formatResume(text: string): string {
   return cleaned.replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
 }
 
+/**
+ * The last machine-made pass before a draft ships: normalise the shape, then
+ * cut any decorative clause the model left behind. Only the decoration goes —
+ * no word inside a bullet is touched.
+ */
+export function tidyResume(text: string): string {
+  return formatResume(text)
+    .split("\n")
+    .map((line) => {
+      if (!/^\s*[-•*·]\s+/.test(line)) return line;
+      const bullet = plain(line);
+      const cut = stripDecorativeTail(bullet);
+      return cut === bullet ? line : `- ${cut}`;
+    })
+    .join("\n");
+}
+
 /** Violations worth one repair pass: the cheap lint, without the nitpicks. */
 export function seriousIssues(issues: DraftIssue[]): DraftIssue[] {
-  const seriousRules = new Set(["banned phrase", "trailing -ing clause", "placeholder left in", "weak bullet opener"]);
+  const seriousRules = new Set([
+    "banned phrase",
+    "trailing -ing clause",
+    "placeholder left in",
+    "weak bullet opener",
+    "restates another bullet",
+  ]);
   return issues.filter((issue) => seriousRules.has(issue.rule));
+}
+
+/**
+ * One sentence a candidate can act on. The linter's own details are written for
+ * a machine, so they leak bullet markers and fragments into the UI otherwise.
+ */
+export function manualPassNote(issues: DraftIssue[]): string {
+  const issue = seriousIssues(issues)[0];
+  if (!issue) return "";
+  const detail = issue.detail.length > 120 ? `${issue.detail.slice(0, 117)}…` : issue.detail;
+  switch (issue.rule) {
+    case "trailing -ing clause":
+      return `One bullet still ends on a decorative "-ing" clause — give it a real result or cut the clause: "${detail}".`;
+    case "banned phrase":
+      return `Filler phrasing is still in the draft: ${detail}.`;
+    case "weak bullet opener":
+      return `One bullet still opens weakly: ${detail}.`;
+    case "placeholder left in":
+      return `A placeholder survived the rewrite: ${detail}.`;
+    case "restates another bullet":
+      return `Two bullets say the same thing — merge them or drop one: ${detail}.`;
+    case "repeated verb":
+      return `The same verb opens more than one bullet: ${detail}.`;
+    case "bullet too long":
+      return `One bullet runs long: ${detail}.`;
+    default:
+      return `Worth a manual pass: ${detail}.`;
+  }
+}
+
+/**
+ * The gaps in the posting that the candidate's material never shows. Skipped
+ * when the model already warned about them, so the note does not say it twice.
+ */
+export function keywordGapNote(missing: string[], modelNotes: string): string {
+  if (!missing.length) return "";
+  const said = modelNotes.toLowerCase();
+  const unmentioned = missing.slice(0, 5).filter((term) => !said.includes(term.toLowerCase()));
+  if (unmentioned.length < 2) return "";
+  return `The posting also asks for ${unmentioned.join(", ")} — add each one only if you have really done it.`;
 }
 
 export function describeIssues(issues: DraftIssue[]): string[] {
