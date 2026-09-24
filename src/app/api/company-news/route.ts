@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { get as httpsGet } from "https";
+import { requireUser } from "@/lib/auth";
+import { fetchText as fetchRemoteText } from "@/lib/http";
+import { enforceRateLimit, FEED_RATE_LIMIT } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -11,38 +13,9 @@ interface NewsItem {
   source: string;
 }
 
+/** RSS and JSON feeds here are fetched with the shared, SSRF-checked client. */
 function fetchText(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const req = httpsGet(
-      url,
-      {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; JobFitBot/1.0)" },
-        // Local dev machines often lack the full CA chain for Google/HN.
-        rejectUnauthorized: false,
-      },
-      (res) => {
-        const status = res.statusCode ?? 0;
-        const location = res.headers.location;
-        if ([301, 302, 303, 307, 308].includes(status) && location) {
-          res.resume();
-          const next = new URL(location, url).toString();
-          fetchText(next).then(resolve, reject);
-          return;
-        }
-        let data = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-        res.on("end", () => {
-          if (status >= 200 && status < 400) resolve(data);
-          else reject(new Error(`HTTP ${status}`));
-        });
-      },
-    );
-    req.setTimeout(15_000, () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
-  });
+  return fetchRemoteText(url, 15_000, { "User-Agent": "Mozilla/5.0 (compatible; JobFitBot/1.0)" });
 }
 
 function stripCdata(value: string): string {
@@ -92,6 +65,10 @@ async function fetchHackerNews(company: string): Promise<NewsItem[]> {
 }
 
 export async function GET(request: NextRequest) {
+  const user = await requireUser(request);
+  const limited = await enforceRateLimit(request, FEED_RATE_LIMIT, user);
+  if (limited) return limited;
+
   const company = request.nextUrl.searchParams.get("company")?.trim() ?? "";
   if (!company) return NextResponse.json({ error: "Missing company." }, { status: 400 });
 

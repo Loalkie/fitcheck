@@ -35,7 +35,12 @@ Open http://localhost:3000.
 
 - Workspace data persists to Postgres when `DATABASE_URL` (or the `POSTGRES_URL` a Vercel/Neon
   integration injects) is set, otherwise to `./.data/app.db` (SQLite, auto-created; git-ignored).
-- Sessions use an httpOnly cookie (`fit_session`), passwords are hashed with `scrypt` + per-user salt.
+- Sessions use an httpOnly + `Secure` cookie (`fit_session`), passwords are hashed with `scrypt` + per-user salt.
+- Only accounts listed in `ADMIN_EMAILS` can read or change the site-wide integration keys
+  (AI provider, Stripe, job feeds). Everyone else can use the app, but not the key store.
+- Anonymous AI requests are rate limited per IP; signed-in requests are limited per account. Counters live in the
+  same database, so limits hold across serverless instances.
+- Paid plans are only ever granted by the signed-in Stripe webhook; `/api/billing` can only drop a user to Free.
 - Until you sign in, the workspace lives in browser localStorage. Signing in syncs it to your account.
 - Resumes/JDs are processed transiently for analysis and are not retained beyond what's in your workspace.
 

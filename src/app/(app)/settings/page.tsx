@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [health, setHealth] = useState<{ ok: boolean; db: boolean } | null>(null);
+  const [denied, setDenied] = useState(false);
+  const [error, setError] = useState("");
 
   function refreshHealth() {
     setHealth(null);
@@ -38,8 +40,12 @@ export default function SettingsPage() {
 
     if (!user) return;
     fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data: { settings?: Record<string, string> }) => {
+      .then(async (res) => {
+        if (res.status === 403) {
+          setDenied(true);
+          return;
+        }
+        const data = (await res.json()) as { settings?: Record<string, string> };
         setValues(data.settings ?? {});
       })
       .catch(() => {});
@@ -48,14 +54,21 @@ export default function SettingsPage() {
   async function save() {
     setBusy(true);
     setSaved(false);
+    setError("");
     try {
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? "Could not save these keys.");
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 1600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save these keys.");
     } finally {
       setBusy(false);
     }
@@ -66,11 +79,23 @@ export default function SettingsPage() {
       <section className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center">
         <p className="text-sm font-semibold text-slate-800">Sign in to manage integrations</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
-          API keys are stored only in your local workspace database and are masked in the UI.
+          Integration keys apply to the whole site, so only the owner account can edit them.
         </p>
         <button type="button" onClick={openAuth} className="btn-primary btn-sm mt-4">
           Sign in / Sync
         </button>
+      </section>
+    );
+  }
+
+  if (denied) {
+    return (
+      <section className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center">
+        <p className="text-sm font-semibold text-slate-800">Owner-only settings</p>
+        <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
+          These keys decide which AI provider every visitor&apos;s resume is sent to and which Stripe account takes
+          payments, so they are limited to the deployment owner. The rest of the app works normally.
+        </p>
       </section>
     );
   }
@@ -125,6 +150,7 @@ export default function SettingsPage() {
         <button type="button" onClick={() => void save()} disabled={busy} className="btn-primary mt-4 disabled:bg-slate-300">
           {busy ? "Saving…" : saved ? "Saved ✓" : "Save settings"}
         </button>
+        {error ? <p className="mt-3 text-xs font-semibold text-rose-600">{error}</p> : null}
       </section>
     </div>
   );

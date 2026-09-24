@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseResume } from "@/lib/parse";
+import { requireUser } from "@/lib/auth";
+import { enforceRateLimit, UPLOAD_RATE_LIMIT } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireUser(request);
+    const limited = await enforceRateLimit(request, UPLOAD_RATE_LIMIT, user);
+    if (limited) return limited;
+
     const form = await request.formData();
     const file = form.get("resume");
     if (!file || typeof file === "string" || !(file instanceof File)) {

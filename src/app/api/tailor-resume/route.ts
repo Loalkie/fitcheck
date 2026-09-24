@@ -3,6 +3,7 @@ import { tailorResume } from "@/lib/tailor";
 import type { UserProfile } from "@/lib/store";
 import { requireUser } from "@/lib/auth";
 import { recordUsage } from "@/lib/billing";
+import { enforceRateLimit, AI_RATE_LIMIT } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,6 +11,8 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request);
+    const limited = await enforceRateLimit(request, AI_RATE_LIMIT, user);
+    if (limited) return limited;
     if (user) {
       const usage = await recordUsage(user.id, "ai_resume");
       if (!usage.allowed) {

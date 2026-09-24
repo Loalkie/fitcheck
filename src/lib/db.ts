@@ -85,6 +85,14 @@ CREATE TABLE IF NOT EXISTS "usage" (
   PRIMARY KEY(user_id, metric, period),
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  bucket TEXT NOT NULL,
+  "key" TEXT NOT NULL,
+  window_start BIGINT NOT NULL,
+  "count" INTEGER NOT NULL,
+  PRIMARY KEY(bucket, "key", window_start)
+);
 `;
 
 function isTemporaryDir(dir: string): boolean {

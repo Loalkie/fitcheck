@@ -107,14 +107,33 @@ export async function requireUser(req: NextRequest): Promise<UserRow | null> {
   return getSessionUser(req.cookies.get(SESSION_COOKIE)?.value);
 }
 
-export function sessionCookie(token: string, maxAge: number): string {
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
-}
-
-export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
-}
+/**
+ * `Secure` is on in production only: browsers refuse to store a Secure cookie
+ * over plain http, which is how the app runs during local development.
+ */
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  path: "/",
+  secure: process.env.NODE_ENV === "production",
+} as const;
 
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+}
+
+/**
+ * Site-wide integration keys (AI provider, Stripe, job feeds) belong to whoever
+ * runs the deployment, not to whoever signs up. Without a configured owner the
+ * endpoint stays closed rather than open.
+ */
+function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAdminEmail(email: string): boolean {
+  return adminEmails().includes(email.trim().toLowerCase());
 }
