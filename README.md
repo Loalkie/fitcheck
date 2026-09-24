@@ -16,7 +16,10 @@ Built with **Next.js 15 (App Router) + TypeScript + Tailwind CSS + Postgres/SQLi
   desired salary, and work preferences, with US median-salary references per target role.
 - **Insights** — interview rate, average match, and score-vs-outcome attribution.
 - **Shareable stat card** — one-click PNG download (Applied · Interviews · Offers) for social posts.
-- **Accounts & sync** — email + password login; your workspace syncs across devices via SQLite.
+- **Accounts & sync** — email + password login; your workspace syncs across devices via Postgres or SQLite.
+- **Account recovery** — password reset by email, optional email verification, and account deletion from Settings.
+- **Browser extension** — Chrome MV3 assistant in `extension/`; it points at any deployment from its popup.
+- **Legal pages** — `/privacy` and `/terms` cover the AI provider, Stripe, cookies and account deletion.
 - **Quick check** — one-off resume × JD analysis without saving anything.
 
 ## Quick start
@@ -43,6 +46,31 @@ Open http://localhost:3000.
 - Paid plans are only ever granted by the signed-in Stripe webhook; `/api/billing` can only drop a user to Free.
 - Until you sign in, the workspace lives in browser localStorage. Signing in syncs it to your account.
 - Resumes/JDs are processed transiently for analysis and are not retained beyond what's in your workspace.
+- Session and extension tokens are stored as SHA-256 digests, and password-reset / verification links are
+  single-use and hashed, so a database dump does not hand over working logins.
+- The schema is applied by ordered migrations in `src/lib/migrations.ts`; an existing database is upgraded in
+  place on the next request, with indexes on the columns the queries actually filter by.
+- Password reset and email verification need an email provider (`MAIL_API_KEY`, Resend by default); without one
+  those endpoints answer 503 instead of silently doing nothing.
+
+## Search engines
+
+`/robots.txt` and `/sitemap.xml` are generated from `src/lib/site.ts`. The landing page, `/pricing`, `/privacy`
+and `/terms` are indexable; everything behind the app shell is listed in `WORKSPACE_ROUTES` and disallowed, and
+those pages also carry `<meta name="robots" content="noindex">` through the `(app)` layout. Add a new workspace
+page to `WORKSPACE_ROUTES` — a test fails if you forget.
+
+## Tests and CI
+
+```bash
+npm run verify        # typecheck + build + tests
+npm test              # integration tests only (needs a build first)
+```
+
+The suite in `tests/` boots the real production server (`.next`) against a throwaway SQLite directory and a
+stub mail provider, then drives it over HTTP: the account lifecycle (register → verify → reset → delete),
+access control on billing and the key store, rate limits, and the crawler-facing files. `.github/workflows/ci.yml`
+runs typecheck, build and tests on every push to `main` and every pull request.
 
 ## Storage backends
 
@@ -108,6 +136,11 @@ src/
       analyze-text/route.ts      # Text → analysis (workspace)
       parse/route.ts             # File → extracted text (master resume)
       auth/register|login|logout|me/route.ts
+      auth/forgot-password|reset-password/route.ts   # reset by email
+      auth/send-verification|verify-email/route.ts   # confirm the address
+      auth/delete-account/route.ts                   # account deletion
+      billing/webhook/route.ts                       # Stripe → plan changes
+      billing/portal/route.ts                        # cancel / update card
       workspace/route.ts         # GET/PUT synced workspace
   components/
     Workspace.tsx                # Main dashboard (client state + auth + sync)
@@ -116,7 +149,7 @@ src/
     AddJobModal.tsx              # Add-a-job form
     QuickCheckModal.tsx          # One-off analyzer
     ReportModal.tsx              # Full report + share summary
-    AuthModal.tsx                # Sign in / create account
+    AuthModal.tsx                # Sign in / create account / reset link
     ShareStatCard.tsx            # PNG stat-card download
     Results.tsx                  # Scores, keywords, risks, profile
     FileDropzone.tsx             # Drag-and-drop upload
@@ -126,6 +159,9 @@ src/
     store.ts                     # Workspace + profile types, localStorage persistence
     roles.ts                     # Curated US roles, salary ranges, skills, industries
     client.ts                    # Browser → API helpers (analysis + auth + sync)
+    migrations.ts                # Ordered schema migrations for both engines
+    mailer.ts                    # Transactional email over an HTTP API
+    site.ts                      # Public origin + indexable/workspace routes
     parse.ts                     # PDF/DOCX/TXT extraction (unpdf + mammoth)
     ai.ts                        # OpenAI-compatible client + JSON coercion
     mock.ts                      # Deterministic heuristic fallback
@@ -149,3 +185,5 @@ src/
 - `npm run build` — production build
 - `npm start` — run production build
 - `npm run typecheck` — TypeScript check
+- `npm test` — integration tests against a built server
+- `npm run verify` — typecheck, build and tests in one go
